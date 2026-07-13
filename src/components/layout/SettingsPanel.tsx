@@ -7,9 +7,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Separator } from "@/components/ui/separator";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useAnimation } from "@/lib/animation-context";
 import { useCardTheme } from "@/lib/theme-context";
 import { useAuth } from "@/lib/auth-context";
+import { syncSiteDefaults } from "@/lib/site-defaults";
 
 type BgType = "aurora" | "image" | "video" | "none";
 
@@ -310,12 +312,6 @@ export function SettingsPanel() {
           </section>
         )}
 
-        {/* 恢复默认 */}
-        <Button variant="outline" size="sm" className="w-full text-xs"
-          onClick={() => update({ type: "aurora", blur: 0, opacity: 0.3, activeAssetSrc: undefined })}>
-          恢复默认
-        </Button>
-
         <Separator />
 
         {/* ===== 背景管理（可折叠） ===== */}
@@ -413,6 +409,16 @@ export function SettingsPanel() {
           <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide mb-3">🃏 卡片样式</h3>
           <CardThemeToggle />
         </section>
+
+        <Separator />
+
+        {/* ===== 默认外观（管理员） ===== */}
+        {isAdmin && (
+          <section>
+            <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide mb-3">🎨 默认外观</h3>
+            <SiteDefaultsDialog settings={settings} />
+          </section>
+        )}
 
         <Separator />
 
@@ -581,6 +587,140 @@ function AdminLogin() {
       </div>
       {loginError && <p className="text-[10px] text-destructive">{loginError}</p>}
       <button onClick={() => { setShow(false); setPw(""); }} className="text-[10px] text-muted-foreground hover:underline">取消</button>
+    </div>
+  );
+}
+
+function SiteDefaultsDialog({ settings }: { settings: BgSettings }) {
+  const { cardTheme: currentCardTheme } = useCardTheme();
+  const [open, setOpen] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [currentDefaults, setCurrentDefaults] = useState<Record<string, string> | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  // 当前外观 — 从 props + context（实时响应设置面板变化）
+  const bgType = settings.type || "aurora";
+  const bgBlur = settings.blur;
+  const bgOpacity = settings.opacity;
+  const bgSrc = settings.activeAssetSrc || "";
+  const theme = localStorage.getItem("theme") || "";
+  const cardTheme = currentCardTheme;
+  const assets = JSON.parse(localStorage.getItem("bg_assets") || "[]") as { id: string; name: string; type: string; src: string }[];
+  const activeAsset = assets.find(a => a.id !== "__aurora" && bgSrc && (bgSrc.includes(a.id) || bgSrc === a.src));
+
+  const bgLabel = bgType === "aurora" ? "极光动画" : bgType === "image" ? (activeAsset?.name || "图片") : bgType === "video" ? (activeAsset?.name || "视频") : "无背景";
+  const blurLabel = `${bgBlur}px`;
+  const opacityLabel = `${Math.round(bgOpacity * 100)}%`;
+  const themeLabel = theme === "dark" ? "🌙 暗色模式" : theme === "light" ? "☀️ 亮色模式" : "跟随系统";
+  const cardLabel = cardTheme === "clean" ? "📄 简洁白底" : "🪟 毛玻璃";
+
+  useEffect(() => {
+    if (open) {
+      fetch("/api/data/site_defaults")
+        .then(r => r.json())
+        .then(json => {
+          if (json.exists && json.data) setCurrentDefaults(json.data as Record<string, string>);
+        })
+        .catch(() => {});
+      setSaved(false);
+    }
+  }, [open]);
+
+  async function handleSave() {
+    await syncSiteDefaults();
+    // 刷新当前默认显示
+    const res = await fetch("/api/data/site_defaults");
+    const json = await res.json();
+    if (json.exists) {
+      setCurrentDefaults({ ...(json.data as Record<string, string>) });
+    } else {
+      setCurrentDefaults({ bg_type: "aurora", theme: "", card_theme: "glass" });
+    }
+    setRefreshKey(k => k + 1);
+    setSaved(true);
+  }
+
+  function handleSwitchToDefaults() {
+    fetch("/api/data/site_defaults")
+      .then(r => r.json())
+      .then(json => {
+        if (json.exists && json.data) {
+          const d = json.data as Record<string, string>;
+          // 覆盖本地设置
+          if (d.bg_type) localStorage.setItem("bg_type", d.bg_type);
+          if (d.bg_blur) localStorage.setItem("bg_blur", d.bg_blur);
+          if (d.bg_opacity) localStorage.setItem("bg_opacity", d.bg_opacity);
+          if (d.bg_active_src) localStorage.setItem("bg_active_src", d.bg_active_src);
+          if (d.theme) localStorage.setItem("theme", d.theme);
+          if (d.card_theme) localStorage.setItem("card_theme", d.card_theme);
+          // 刷新页面以应用
+          window.location.reload();
+        }
+      })
+      .catch(() => {});
+  }
+
+  return (
+    <div className="space-y-2">
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogTrigger className="w-full px-2 py-1.5 rounded-md text-xs border border-border hover:bg-accent transition-colors text-left">
+          🎨 设置默认外观
+        </DialogTrigger>
+        <DialogContent className="sm:max-w-sm" key={refreshKey}>
+          <DialogHeader>
+            <DialogTitle>🎨 设置默认外观</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 mt-2">
+            {/* 当前外观 */}
+            <div className="p-3 rounded-lg bg-muted/50 space-y-2">
+              <p className="text-xs font-semibold text-muted-foreground">📱 你当前的外观</p>
+              <div className="space-y-1 text-xs">
+                <div className="flex justify-between"><span>背景</span><span className="font-medium">{bgLabel}</span></div>
+                <div className="flex justify-between"><span>模糊</span><span className="font-medium">{blurLabel}</span></div>
+                <div className="flex justify-between"><span>遮罩</span><span className="font-medium">{opacityLabel}</span></div>
+                <div className="flex justify-between"><span>模式</span><span className="font-medium">{themeLabel}</span></div>
+                <div className="flex justify-between"><span>卡片</span><span className="font-medium">{cardLabel}</span></div>
+              </div>
+            </div>
+
+            {/* 当前默认 */}
+            <div className="p-3 rounded-lg bg-accent/50 space-y-2">
+              <p className="text-xs font-semibold text-muted-foreground">🌐 站点默认外观</p>
+              {currentDefaults ? (
+                <div className="space-y-1 text-xs">
+                  <div className="flex justify-between"><span>背景</span><span className="font-medium">{
+                    currentDefaults.bg_type === "aurora" ? "极光动画" :
+                    currentDefaults.bg_type === "image" ? (currentDefaults.bg_active_name || "图片") :
+                    currentDefaults.bg_type === "video" ? (currentDefaults.bg_active_name || "视频") : "无背景"
+                  }</span></div>
+                  <div className="flex justify-between"><span>模糊</span><span className="font-medium">{currentDefaults.bg_blur || "0"}px</span></div>
+                  <div className="flex justify-between"><span>遮罩</span><span className="font-medium">{Math.round((parseFloat(currentDefaults.bg_opacity || "0.3")) * 100)}%</span></div>
+                  <div className="flex justify-between"><span>模式</span><span className="font-medium">{
+                    currentDefaults.theme === "dark" ? "🌙 暗色模式" :
+                    currentDefaults.theme === "light" ? "☀️ 亮色模式" : "跟随系统"
+                  }</span></div>
+                  <div className="flex justify-between"><span>卡片</span><span className="font-medium">{
+                    currentDefaults.card_theme === "clean" ? "📄 简洁白底" : "🪟 毛玻璃"
+                  }</span></div>
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground">未设置，使用系统默认</p>
+              )}
+            </div>
+
+            {/* 操作 */}
+            <div className="grid grid-cols-2 gap-2">
+              <Button variant="outline" className="rounded-lg text-xs" size="sm" onClick={handleSwitchToDefaults} disabled={!currentDefaults}>
+                🔄 切换到默认
+              </Button>
+              <Button className="rounded-lg text-xs" size="sm" onClick={handleSave} disabled={saved}>
+                {saved ? "✅ 已保存" : "📌 设为默认"}
+              </Button>
+            </div>
+            <p className="text-[10px] text-muted-foreground text-center">「设为默认」新访客看到此外观 | 「切换到默认」你立即应用</p>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
