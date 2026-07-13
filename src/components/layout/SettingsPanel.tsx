@@ -416,6 +416,12 @@ export function SettingsPanel() {
 
         <Separator />
 
+        {/* ===== 数据备份 ===== */}
+        <section>
+          <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide mb-3">💾 数据备份</h3>
+          <BackupSection />
+        </section>
+
         {/* ===== 管理员登录 ===== */}
         <section>
           <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide mb-3">🔒 管理员</h3>
@@ -447,6 +453,87 @@ function CardThemeToggle() {
           {label}
         </button>
       ))}
+    </div>
+  );
+}
+
+function BackupSection() {
+  const [status, setStatus] = useState<string | null>(null);
+
+  function exportData() {
+    const keys = [
+      "blog_custom_posts",
+      "gallery_photos",
+      "travel_all_markers",
+      "travel_markers_version",
+      "music_tracks",
+      "bg_assets",
+      "bg_type",
+      "bg_blur",
+      "bg_opacity",
+      "bg_active_src",
+      "guestbook_messages",
+      "blog_custom_tags",
+    ];
+    const backup: Record<string, any> = {};
+    for (const k of keys) {
+      try {
+        const v = localStorage.getItem(k);
+        if (v) backup[k] = JSON.parse(v);
+      } catch {}
+    }
+    backup._exported_at = new Date().toISOString();
+    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `website-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    setStatus("已导出！");
+    setTimeout(() => setStatus(null), 2000);
+  }
+
+  function importData() {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".json";
+    input.onchange = (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const data = JSON.parse(reader.result as string);
+          let count = 0;
+          for (const [k, v] of Object.entries(data)) {
+            if (k.startsWith("_")) continue;
+            localStorage.setItem(k, typeof v === "string" ? v : JSON.stringify(v));
+            count++;
+          }
+          setStatus(`已恢复 ${count} 项数据！刷新页面生效`);
+          setTimeout(() => setStatus(null), 3000);
+        } catch {
+          setStatus("文件格式错误");
+          setTimeout(() => setStatus(null), 2000);
+        }
+      };
+      reader.readAsText(file);
+    };
+    input.click();
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="grid grid-cols-2 gap-2">
+        <button onClick={exportData} className="px-2 py-1.5 rounded-md text-xs border border-border hover:bg-accent transition-colors">
+          📥 导出备份
+        </button>
+        <button onClick={importData} className="px-2 py-1.5 rounded-md text-xs border border-border hover:bg-accent transition-colors">
+          📤 恢复备份
+        </button>
+      </div>
+      {status && <p className="text-[11px] text-green-500 text-center">{status}</p>}
     </div>
   );
 }
