@@ -1,48 +1,39 @@
-import { neon, type NeonQueryFunction } from "@neondatabase/serverless";
+let initDB: () => Promise<void>;
+let loadData: <T = any>(key: string) => Promise<{ data: T | null; exists: boolean }>;
+let saveData: (key: string, data: any) => Promise<void>;
 
-let _sql: NeonQueryFunction | null = null;
+async function ensureDB() {
+  if (initDB) return;
+  const mod = await import("@neondatabase/serverless");
+  const url = process.env.DATABASE_URL;
+  if (!url) throw new Error("DATABASE_URL is not set");
+  const sql = mod.neon(url);
 
-function getSql(): NeonQueryFunction {
-  if (!_sql) {
-    const url = process.env.DATABASE_URL;
-    if (!url) throw new Error("DATABASE_URL is not set");
-    _sql = neon(url);
-  }
-  return _sql;
+  initDB = async () => {
+    await sql`
+      CREATE TABLE IF NOT EXISTS data (
+        key TEXT PRIMARY KEY,
+        value JSONB NOT NULL DEFAULT '[]',
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `;
+  };
+
+  loadData = async <T = any>(key: string): Promise<{ data: T | null; exists: boolean }> => {
+    const rows = await sql`SELECT value FROM data WHERE key = ${key}`;
+    if (rows.length === 0) return { data: null, exists: false };
+    return { data: rows[0].value as T, exists: true };
+  };
+
+  saveData = async (key: string, data: any) => {
+    await sql`
+      INSERT INTO data (key, value, updated_at)
+      VALUES (${key}, ${JSON.stringify(data)}, NOW())
+      ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
+    `;
+  };
+
+  await initDB();
 }
 
-// -- 建表（首次运行）--
-export async function initDB() {
-  const sql = getSql();
-  await sql`
-    CREATE TABLE IF NOT EXISTS data (
-      key TEXT PRIMARY KEY,
-      value JSONB NOT NULL DEFAULT '[]',
-      updated_at TIMESTAMPTZ DEFAULT NOW()
-    )
-  `;
-}
-
-// -- 读取数据 --
-export async function loadData<T = any>(key: string): Promise<{ data: T | null; exists: boolean }> {
-  const sql = getSql();
-  const rows = await sql`SELECT value FROM data WHERE key = ${key}`;
-  if (rows.length === 0) return { data: null, exists: false };
-  return { data: rows[0].value as T, exists: true };
-}
-
-// -- 写入数据 --
-export async function saveData(key: string, data: any): Promise<void> {
-  const sql = getSql();
-  await sql`
-    INSERT INTO data (key, value, updated_at)
-    VALUES (${key}, ${JSON.stringify(data)}, NOW())
-    ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
-  `;
-}
-
-// -- 删除数据 --
-export async function deleteData(key: string): Promise<void> {
-  const sql = getSql();
-  await sql`DELETE FROM data WHERE key = ${key}`;
-}
+export { ensureDB, loadData, saveData, initDB };
