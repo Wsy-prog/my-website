@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { loadData, saveData, initDB } from "@/lib/db";
 import { getAuthFromRequest } from "@/lib/auth";
 
+export const dynamic = "force-dynamic";
+
 // 无需认证即可写入的 key（留言板）
 const PUBLIC_WRITE_KEYS = ["guestbook_messages"];
 
