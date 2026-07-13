@@ -14,6 +14,7 @@ import { saveCustomPost, loadCustomPosts, deleteCustomPost } from "@/lib/blog-st
 import { useAuth } from "@/lib/auth-context";
 import type { BlogPost } from "@/data/blog-posts";
 import { getAllMarkers } from "@/lib/travel-store";
+import { compressAndUpload } from "@/lib/cloudinary";
 
 const categories = [
   { key: "life", label: "生活" },
@@ -35,28 +36,6 @@ function saveCustomTags(tags: string[]) {
 function getAllTags(): string[] {
   const base = typeof window !== "undefined" ? getAllMarkers().map(m => m.title) : [];
   return [...new Set([...base, ...loadCustomTags()])].sort((a, b) => a.localeCompare(b, "zh"));
-}
-
-function compressImage(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const img = new Image();
-      img.onload = () => {
-        const maxW = 800;
-        const scale = Math.min(1, maxW / img.width);
-        const canvas = document.createElement("canvas");
-        canvas.width = Math.round(img.width * scale);
-        canvas.height = Math.round(img.height * scale);
-        canvas.getContext("2d")!.drawImage(img, 0, 0, canvas.width, canvas.height);
-        resolve(canvas.toDataURL("image/jpeg", 0.7));
-      };
-      img.onerror = reject;
-      img.src = reader.result as string;
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
 }
 
 export const dynamic = "force-dynamic";
@@ -128,12 +107,14 @@ function NewBlogPageInner() {
   }, []);
 
   // 设置封面图片
-  function handleCoverUpload(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleCoverUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    compressImage(file).then((dataUrl) => {
-      setCoverImage(dataUrl);
-    }).catch(() => {});
+    try {
+      setCoverImage("⏳");
+      const url = await compressAndUpload(file, 800);
+      setCoverImage(url);
+    } catch { setCoverImage(null); }
   }
 
   // 插入图片
@@ -141,7 +122,7 @@ function NewBlogPageInner() {
     const file = fileInputRef.current?.files?.[0];
     if (!file) return;
     try {
-      const dataUrl = await compressImage(file);
+      const url = await compressAndUpload(file, 800);
       const el = editorRef.current;
       if (el) {
         el.focus();
@@ -150,7 +131,7 @@ function NewBlogPageInner() {
         if (sel && sel.rangeCount > 0) {
           const range = sel.getRangeAt(0);
           const img = document.createElement("img");
-          img.src = dataUrl;
+          img.src = url;
           img.alt = file.name.replace(/\.[^.]+$/, "");
           img.className = "rounded-xl my-4 max-w-full";
           img.style.maxHeight = "400px";

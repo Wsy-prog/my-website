@@ -12,6 +12,7 @@ import { useAnimation } from "@/lib/animation-context";
 import { useCardTheme } from "@/lib/theme-context";
 import { useAuth } from "@/lib/auth-context";
 import { syncSiteDefaults } from "@/lib/site-defaults";
+import { compressAndUpload } from "@/lib/cloudinary";
 
 type BgType = "aurora" | "image" | "video" | "none";
 
@@ -90,27 +91,6 @@ function applySettings(s: BgSettings) {
   if (aurora) aurora.style.display = showAurora ? "" : "none";
 }
 
-function compressImage(file: File, maxW: number): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const img = new Image();
-      img.onload = () => {
-        const scale = Math.min(1, maxW / img.width);
-        const canvas = document.createElement("canvas");
-        canvas.width = Math.round(img.width * scale);
-        canvas.height = Math.round(img.height * scale);
-        canvas.getContext("2d")!.drawImage(img, 0, 0, canvas.width, canvas.height);
-        resolve(canvas.toDataURL("image/jpeg", 0.8));
-      };
-      img.onerror = reject;
-      img.src = reader.result as string;
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
-
 export function SettingsPanel() {
   const { isAdmin } = useAuth();
   const [open, setOpen] = useState(false);
@@ -153,8 +133,8 @@ export function SettingsPanel() {
   // 导入图片
   async function importImageFile(file: File) {
     try {
-      const dataUrl = await compressImage(file, 1920);
-      const asset: BgAsset = { id: Date.now().toString(36), name: file.name.replace(/\.[^.]+$/, ""), type: "image", src: dataUrl };
+      const url = await compressAndUpload(file, 1920);
+      const asset: BgAsset = { id: Date.now().toString(36), name: file.name.replace(/\.[^.]+$/, ""), type: "image", src: url };
       const updated = [...assets, asset];
       setAssets(updated); saveAssets(updated);
       selectAsset(asset);
@@ -221,7 +201,31 @@ export function SettingsPanel() {
       <SheetTrigger className="fixed top-4 right-16 z-50 rounded-full p-2 bg-background/30 backdrop-blur-sm hover:bg-background/50 transition-colors" title="页面设置">
         <Settings className="h-4 w-4" />
       </SheetTrigger>
-      <SheetContent side="right" className="w-80 sm:w-96 pt-12 flex flex-col gap-5 overflow-y-auto max-h-screen">
+      <SheetContent side="right" className="w-80 sm:w-96 pt-14 flex flex-col gap-5 overflow-y-auto max-h-screen">
+
+        {/* 一键应用博主同款 — 最顶部 */}
+        <button
+          className="w-full rounded-xl bg-gradient-to-r from-purple-600 via-pink-500 to-cyan-400 px-4 py-2.5 text-xs font-medium text-white shadow-lg shadow-purple-500/25 hover:shadow-purple-500/40 hover:scale-[1.02] active:scale-[0.98] transition-all duration-300"
+          onClick={() => {
+            fetch("/api/data/site_defaults")
+              .then(r => r.json())
+              .then(json => {
+                if (json.exists && json.data) {
+                  const d = json.data as Record<string, string>;
+                  if (d.bg_type) localStorage.setItem("bg_type", d.bg_type);
+                  if (d.bg_blur) localStorage.setItem("bg_blur", d.bg_blur);
+                  if (d.bg_opacity) localStorage.setItem("bg_opacity", d.bg_opacity);
+                  if (d.bg_active_src) localStorage.setItem("bg_active_src", d.bg_active_src);
+                  if (d.theme) localStorage.setItem("theme", d.theme);
+                  if (d.card_theme) localStorage.setItem("card_theme", d.card_theme);
+                  window.location.reload();
+                }
+              })
+              .catch(() => {});
+          }}
+        >
+          ✨ 一键设置博主同款背景
+        </button>
 
         {/* ===== 背景类型 ===== */}
         <section>

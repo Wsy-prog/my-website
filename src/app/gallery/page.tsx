@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useRef, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { X, ChevronLeft, ChevronRight, Camera, Search, Plus, Upload, MapPin, Calendar, LayoutGrid, Clock3, ImageIcon, Pencil, Trash2 } from "lucide-react";
+import { X, ChevronLeft, ChevronRight, Camera, Search, Plus, Upload, MapPin, Calendar, LayoutGrid, Clock3, ImageIcon, Pencil, Trash2, Download } from "lucide-react";
 import { AnimatedSection } from "@/components/shared/AnimatedSection";
 import { GradientText } from "@/components/shared/GradientText";
 import { GlassCard } from "@/components/shared/GlassCard";
@@ -15,6 +15,7 @@ import { useAnimation } from "@/lib/animation-context";
 import { useAuth } from "@/lib/auth-context";
 import { getAllMarkers } from "@/lib/travel-store";
 import { loadPhotos, savePhotos, type Photo } from "@/data/photos";
+import { compressAndUpload } from "@/lib/cloudinary";
 
 const categories = ["全部", "风光", "人像", "视频", "运动", "生活"];
 
@@ -52,32 +53,7 @@ function GalleryPageInner() {
   const [localPreview, setLocalPreview] = useState<string | null>(null);
   const [editPhoto, setEditPhoto] = useState<Photo | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
-
-  // 压缩并转换本地图片为 base64
-  function compressImage(file: File): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const img = new Image();
-        img.onload = () => {
-          const maxW = 1200;
-          const scale = Math.min(1, maxW / img.width);
-          const w = Math.round(img.width * scale);
-          const h = Math.round(img.height * scale);
-          const canvas = document.createElement("canvas");
-          canvas.width = w;
-          canvas.height = h;
-          const ctx = canvas.getContext("2d")!;
-          ctx.drawImage(img, 0, 0, w, h);
-          resolve(canvas.toDataURL("image/jpeg", 0.75));
-        };
-        img.onerror = reject;
-        img.src = reader.result as string;
-      };
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
-  }
+  const [uploading, setUploading] = useState(false);
 
   // 加载照片
   useEffect(() => {
@@ -145,13 +121,15 @@ function GalleryPageInner() {
     if (!uploadForm.title.trim()) return;
     let src = uploadForm.src.trim();
 
-    // 如果有本地文件，压缩后使用
+    // 如果有本地文件，上传到 Cloudinary
     if (localPreview && fileInputRef.current?.files?.[0]) {
       try {
-        src = await compressImage(fileInputRef.current.files[0]);
+        setUploading(true);
+        src = await compressAndUpload(fileInputRef.current.files[0], 1200);
       } catch {
-        // 压缩失败，回退到 URL
         if (!src) return;
+      } finally {
+        setUploading(false);
       }
     }
 
@@ -725,6 +703,17 @@ function GalleryPageInner() {
               >
                 <ChevronRight className="h-5 w-5" />
               </button>
+              {/* 下载按钮 */}
+              <a
+                href={currentPhoto.src}
+                download={`${currentPhoto.title}.jpg`}
+                target="_blank"
+                rel="noopener"
+                className="absolute top-14 right-4 w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-cyan-400 flex items-center justify-center text-white shadow-lg shadow-purple-500/30 hover:shadow-purple-500/50 hover:scale-110 transition-all duration-300 animate-pulse"
+                title="下载照片"
+              >
+                <Download className="h-5 w-5" />
+              </a>
             </div>
           )}
         </DialogContent>
