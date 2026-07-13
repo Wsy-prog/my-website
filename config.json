@@ -1,0 +1,82 @@
+{
+  "site": {
+    "name": "My Personal Website",
+    "title": "个人主页",
+    "description": "个人简历、摄影作品、博客文章 —— 记录生活与创作的角落",
+    "url": "https://yoursite.com",
+    "language": "zh",
+    "darkMode": "auto"
+  },
+  "profile": {
+    "name": "王舒毅",
+    "nameEn": "Wang Shuyi",
+    "avatar": "/images/avatar.jpg",
+    "bio": "大学生 · 运动 · 游戏 · VibeCoding · 其它乱七八糟的things",
+    "bioEn": "College Student · Sports · Gaming · VibeCoding · Misc Things"
+  },
+  "background": {
+    "type": "image",
+    "src": "/images/bg.jpg",
+    "blur": 0,
+    "overlayOpacity": 0.4,
+    "enableParticles": false,
+    "enableAurora": true
+  },
+  "resume": {
+    "education": [],
+    "experience": [],
+    "awards": [],
+    "hobbies": ["摄影", "旅行", "阅读", "编程", "骑行", "电影"],
+    "skills": []
+  },
+  "gallery": {
+    "categories": ["全部", "风光", "人像", "视频", "运动", "生活"],
+    "photos": []
+  },
+  "blog": {
+    "featuredCount": 3,
+    "postsPerPage": 10
+  },
+  "contact": {
+    "email": "1753793278@qq.com",
+    "social": {
+      "github": "https://github.com",
+      "wechat": "",
+      "qq": "",
+      "bilibili": "",
+      "xiaohongshu": "",
+      "douyin": ""
+    }
+  },
+  "theme": {
+    "primaryColor": "#7c3aed",
+    "secondaryColor": "#06b6d4"
+  },
+  "features": {
+    "comments": { "enabled": true, "provider": "giscus" },
+    "subscribe": { "enabled": true, "provider": "resend" },
+    "guestbook": { "enabled": true },
+    "music": { "enabled": true },
+    "pwa": { "enabled": true },
+    "travel": { "enabled": true, "mapProvider": "leaflet" }
+  },
+  "travel": {
+    "markers": []
+  },
+  "music": {
+    "autoplay": false,
+    "defaultVolume": 0.3,
+    "tracks": [
+      {
+        "title": "城南花已开",
+        "artist": "三亩地",
+        "src": "/music/三亩地 - 城南花已开.mp3"
+      },
+      {
+        "title": "青空",
+        "artist": "Candy_Wind",
+        "src": "/music/Candy_Wind - 青空.mp3"
+      }
+    ]
+  }
+}

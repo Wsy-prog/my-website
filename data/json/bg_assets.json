@@ -1,0 +1,14 @@
+[
+  {
+    "id": "__aurora",
+    "name": "极光默认",
+    "type": "image",
+    "src": ""
+  },
+  {
+    "id": "__bg_image",
+    "name": "默认壁纸",
+    "type": "image",
+    "src": "/images/bg.jpg"
+  }
+]
