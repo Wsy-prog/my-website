@@ -42,9 +42,8 @@ export default function TravelPage() {
           localStorage.setItem("travel_all_markers", JSON.stringify(serverMarkers));
           setMarkers(serverMarkers);
         } else {
-          // 服务端明确返回空数组，也覆盖本地
-          localStorage.removeItem("travel_all_markers");
-          setMarkers([]);
+          // 服务端明确返回空数组，回退到内置数据+本地
+          setMarkers(getAllMarkers());
         }
       }
     });
