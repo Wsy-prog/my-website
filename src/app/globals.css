@@ -251,6 +251,14 @@
   z-index: -2;
 }
 
+/* 背景加载前先用极光颜色兜底，避免白屏 */
+body {
+  background: linear-gradient(135deg, #1a0533, #0a1628, #1a0a1e);
+}
+.dark body {
+  background: linear-gradient(135deg, #1a0533, #0a1628, #1a0a1e);
+}
+
 .aurora-blob {
   position: absolute;
   border-radius: 50%;
