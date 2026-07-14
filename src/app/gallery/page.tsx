@@ -59,21 +59,11 @@ function GalleryPageInner() {
   useEffect(() => {
     setPhotos(loadPhotos());
     setLoaded(true);
-    // 尝试从服务端同步
+    // 以服务端数据为准覆盖
     import("@/data/photos").then(mod => mod.loadPhotosFromServer()).then(serverPhotos => {
-      if (serverPhotos.length > 0) {
-        const local = loadPhotos();
-        // 合并：服务端有但本地没有的照片添加上去
-        const localIds = new Set(local.map(p => p.id));
-        const merged = [...local];
-        for (const sp of serverPhotos) {
-          if (!localIds.has(sp.id)) {
-            merged.push(sp);
-            localIds.add(sp.id);
-          }
-        }
-        localStorage.setItem("gallery_photos", JSON.stringify(merged));
-        setPhotos(merged);
+      if (serverPhotos.length > 0 || true) {
+        localStorage.setItem("gallery_photos", JSON.stringify(serverPhotos));
+        setPhotos(loadPhotos());
       }
     });
   }, []);

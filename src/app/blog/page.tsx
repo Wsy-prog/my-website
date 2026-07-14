@@ -103,20 +103,11 @@ function BlogPageInner() {
   // 每次导航回 /blog 或初次加载时刷新文章列表
   useEffect(() => {
     setAllPosts(getAllPosts(blogPosts));
-    // 尝试从服务端加载博客文章
+    // 尝试从服务端同步数据
     import("@/lib/blog-store").then(mod => mod.loadCustomPostsServer()).then(serverPosts => {
       if (serverPosts.length > 0) {
-        // 合并服务端文章到 localStorage，不覆盖已有本地文章
-        const local = loadCustomPosts();
-        const localSlugs = new Set(local.map(p => p.slug));
-        const merged = [...local];
-        for (const sp of serverPosts) {
-          if (!localSlugs.has(sp.slug)) {
-            merged.push(sp);
-            localSlugs.add(sp.slug);
-          }
-        }
-        localStorage.setItem("blog_custom_posts", JSON.stringify(merged));
+        // 以服务端数据为准覆盖本地
+        localStorage.setItem("blog_custom_posts", JSON.stringify(serverPosts));
       }
       setAllPosts(getAllPosts(blogPosts));
     });

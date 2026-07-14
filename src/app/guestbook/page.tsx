@@ -54,13 +54,20 @@ function loadMessages(): Message[] {
   }
 }
 
-// 保存留言（去掉 UI 状态字段）
+// 保存留言（去掉 UI 状态字段，同步到服务端）
 function saveMessages(msgs: Message[]) {
   if (typeof window === "undefined") return;
   const strip = (ms: (Message | ReplyMsg)[]): any[] =>
     ms.map(({ showReplyForm, ...m }) => ({ ...m, replies: strip(m.replies) }));
+  const data = strip(msgs);
   try {
-    localStorage.setItem(GUESTBOOK_KEY, JSON.stringify(strip(msgs)));
+    localStorage.setItem(GUESTBOOK_KEY, JSON.stringify(data));
+    // 同步到服务端
+    fetch("/api/data/guestbook_messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ data }),
+    }).catch(() => {});
   } catch { /* quota exceeded */ }
 }
 
@@ -100,14 +107,26 @@ export default function GuestbookPage() {
   const [visitorCount, setVisitorCount] = useState(0);
   const [loaded, setLoaded] = useState(false);
 
-  // 首次加载：从 localStorage 恢复留言（覆盖默认值）
+  // 首次加载：从服务端同步留言（覆盖本地）
   useEffect(() => {
-    const saved = loadMessages();
-    // 只有当 localStorage 有数据时才覆盖（否则保留 initialMessages）
-    if (typeof window !== "undefined" && localStorage.getItem(GUESTBOOK_KEY)) {
-      setMessages(saved);
-    }
-    setLoaded(true);
+    const sync = async () => {
+      try {
+        const res = await fetch("/api/data/guestbook_messages");
+        const json = await res.json();
+        if (json.exists && Array.isArray(json.data)) {
+          localStorage.setItem(GUESTBOOK_KEY, JSON.stringify(json.data));
+          const hydrate = (msgs: any[]): Message[] =>
+            msgs.map((m) => ({ ...m, showReplyForm: false, replies: hydrate(m.replies || []) }));
+          setMessages(hydrate(json.data));
+        } else if (localStorage.getItem(GUESTBOOK_KEY)) {
+          setMessages(loadMessages());
+        }
+      } catch {
+        if (localStorage.getItem(GUESTBOOK_KEY)) setMessages(loadMessages());
+      }
+      setLoaded(true);
+    };
+    sync();
   }, []);
 
   // 留言变化时自动保存（跳过首次加载）

@@ -33,7 +33,16 @@ export default function TravelPage() {
   const photos = loadPhotos();
 
   useEffect(() => { setAllPosts(getAllPosts(blogPosts)); }, []);
-  useEffect(() => { setMarkers(getAllMarkers()); }, []);
+  useEffect(() => {
+    setMarkers(getAllMarkers());
+    // 从服务端同步旅行地点
+    import("@/lib/travel-store").then(mod => mod.loadMarkersFromServer()).then(serverMarkers => {
+      if (serverMarkers.length > 0) {
+        localStorage.setItem("travel_all_markers", JSON.stringify(serverMarkers));
+        setMarkers(serverMarkers);
+      }
+    });
+  }, []);
 
   function getPhotoCount(title: string): number {
     return photos.filter((p) => p.location === title).length;
