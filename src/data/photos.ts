@@ -46,6 +46,9 @@ export async function loadPhotosFromServer(): Promise<Photo[] | null> {
     if (json.exists && Array.isArray(json.data)) {
       return json.data;
     }
+    if (json.exists && json.data === null) {
+      return null;
+    }
     if (json.exists) {
       return [];
     }

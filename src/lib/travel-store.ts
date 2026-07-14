@@ -51,6 +51,10 @@ export async function loadMarkersFromServer(): Promise<TravelMarker[] | null> {
     if (json.exists && Array.isArray(json.data)) {
       return json.data;
     }
+    if (json.exists && json.data === null) {
+      // key 存在但 value 为 null → 还没同步过，返回 null 让前端回退本地
+      return null;
+    }
     if (json.exists) {
       return [];
     }

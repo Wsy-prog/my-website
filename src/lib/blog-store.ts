@@ -37,7 +37,11 @@ export async function loadCustomPostsServer(): Promise<BlogPost[] | null> {
     if (json.exists && Array.isArray(json.data)) {
       return json.data.map(sanitizePost);
     }
-    // exists 但 data 为 null/undefined → 服务端明确说没数据，返回空数组
+    // exists 且 data 为 null → 还没同步过，返回 null 保留本地
+    if (json.exists && json.data === null) {
+      return null;
+    }
+    // exists 但 data 不是数组
     if (json.exists) {
       return [];
     }
