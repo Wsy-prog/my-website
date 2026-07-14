@@ -91,7 +91,8 @@ function GalleryPageInner() {
         (p) =>
           p.title.toLowerCase().includes(q) ||
           (p.location && p.location.toLowerCase().includes(q)) ||
-          (p.camera && p.camera.toLowerCase().includes(q))
+          (p.camera && p.camera.toLowerCase().includes(q)) ||
+          (p.tags && p.tags.some(t => t.toLowerCase().includes(q)))
       );
     }
 
