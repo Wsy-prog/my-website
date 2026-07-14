@@ -3,15 +3,26 @@
 import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Calendar, Clock, Tag, Share2 } from "lucide-react";
+import { ArrowLeft, Calendar, Clock, Tag, Share2, Heart, Reply, Trash2, User, Send } from "lucide-react";
 import { AnimatedSection } from "@/components/shared/AnimatedSection";
 import { GlassCard } from "@/components/shared/GlassCard";
 import { GradientText } from "@/components/shared/GradientText";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { blogPosts, type BlogPost } from "@/data/blog-posts";
 import { getPostBySlug } from "@/lib/blog-store";
+import { useAuth } from "@/lib/auth-context";
+import {
+  loadComments,
+  saveComments,
+  updateReplyDeep,
+  addReplyDeep,
+  type BlogComment,
+  type BlogReply,
+} from "@/lib/blog-comments";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +31,31 @@ export default function BlogPostPage() {
   const slug = params.slug as string;
   // null = 加载中, undefined = 未找到, BlogPost = 找到了
   const [post, setPost] = useState<BlogPost | null | undefined>(undefined);
+  const { isAdmin } = useAuth();
+
+  // 评论区
+  const [comments, setComments] = useState<BlogComment[]>([]);
+  const [commentsLoaded, setCommentsLoaded] = useState(false);
+  const [form, setForm] = useState({ name: "", content: "" });
+  const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
+  const [likedIds, setLikedIds] = useState<number[]>([]);
+
+  useEffect(() => {
+    const saved = JSON.parse(localStorage.getItem("blog_comment_liked") || "[]") as number[];
+    setLikedIds(saved);
+  }, []);
+
+  const isLiked = (id: number) => likedIds.includes(id);
+
+  const toggleLike = (id: number) => {
+    if (isLiked(id)) {
+      setLikedIds((prev) => { const next = prev.filter((lid) => lid !== id); localStorage.setItem("blog_comment_liked", JSON.stringify(next)); return next; });
+      setComments((prev) => prev.map((c) => (c.id === id ? { ...c, likes: c.likes - 1 } : c)));
+    } else {
+      setLikedIds((prev) => { const next = [...prev, id]; localStorage.setItem("blog_comment_liked", JSON.stringify(next)); return next; });
+      setComments((prev) => prev.map((c) => (c.id === id ? { ...c, likes: c.likes + 1 } : c)));
+    }
+  };
 
   useEffect(() => {
     let found: BlogPost | null = getPostBySlug(slug);
@@ -27,7 +63,74 @@ export default function BlogPostPage() {
       found = blogPosts.find((p) => p.slug === slug) || null;
     }
     setPost(found ?? undefined);
+    // 加载评论
+    setComments(loadComments(slug));
+    setCommentsLoaded(true);
   }, [slug]);
+
+  // 评论变化时自动保存
+  useEffect(() => {
+    if (commentsLoaded) {
+      saveComments(slug, comments);
+    }
+  }, [comments, commentsLoaded, slug]);
+
+  // 评论操作
+  function handleAddComment(e: React.FormEvent) {
+    e.preventDefault();
+    if (!form.name.trim() || !form.content.trim()) return;
+    const newComment: BlogComment = {
+      id: Date.now(),
+      name: form.name,
+      content: form.content,
+      date: new Date().toISOString().split("T")[0],
+      likes: 0,
+      replies: [],
+      showReplyForm: false,
+    };
+    setComments([newComment, ...comments]);
+    setForm({ name: "", content: "" });
+  }
+
+  const toggleReplyForm = (id: number, isTopLevel: boolean) => {
+    if (isTopLevel) {
+      setComments(comments.map((c) => (c.id === id ? { ...c, showReplyForm: !c.showReplyForm } : c)));
+    } else {
+      setComments(comments.map((c) => ({
+        ...c,
+        replies: updateReplyDeep(c.replies, id, (r) => ({ ...r, showReplyForm: !r.showReplyForm })),
+      })));
+    }
+  };
+
+  const addReply = (parentId: number, parentReplyId: number | null, replyName: string, replyContent: string) => {
+    if (!replyName.trim() || !replyContent.trim()) return;
+    const reply: BlogReply = {
+      id: Date.now(),
+      name: replyName,
+      content: replyContent,
+      date: new Date().toISOString().split("T")[0],
+      replies: [],
+      showReplyForm: false,
+    };
+    if (parentReplyId === null) {
+      setComments(comments.map((c) =>
+        c.id === parentId ? { ...c, replies: [...c.replies, reply], showReplyForm: false } : c
+      ));
+    } else {
+      setComments(comments.map((c) => {
+        if (c.id !== parentId) return c;
+        return { ...c, replies: addReplyDeep(c.replies, parentReplyId, reply) };
+      }));
+    }
+  };
+
+  function handleDeleteComment(id: number) {
+    const removeDeep = (replies: BlogReply[]): BlogReply[] =>
+      replies.filter((r) => r.id !== id).map((r) => ({ ...r, replies: removeDeep(r.replies) }));
+    setComments(comments.filter((c) => c.id !== id).map((c) => ({ ...c, replies: removeDeep(c.replies) })));
+    setDeleteTarget(null);
+  }
 
   if (post === undefined) {
     return (
@@ -123,7 +226,7 @@ export default function BlogPostPage() {
         </GlassCard>
       </AnimatedSection>
 
-      {/* Share & Comments placeholder */}
+      {/* Share button */}
       <AnimatedSection delay={0.4} className="mt-12">
         <div className="flex items-center justify-between">
           <Button variant="outline" className="gap-2 rounded-full">
@@ -133,11 +236,221 @@ export default function BlogPostPage() {
 
         <Separator className="my-8" />
 
-        {/* Giscus Comments Placeholder */}
-        <GlassCard className="text-center py-12">
-          <p className="text-muted-foreground">💬 评论区域（部署后配置 Giscus 即可启用）</p>
-        </GlassCard>
+        {/* Comments Section */}
+        {post.commentsEnabled !== false && (
+          <CommentSection
+            slug={slug}
+            isAdmin={isAdmin}
+          />
+        )}
       </AnimatedSection>
     </div>
+  );
+}
+
+function CommentSection({ slug, isAdmin }: { slug: string; isAdmin: boolean }) {
+  const [comments, setComments] = useState<BlogComment[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const [form, setForm] = useState({ name: "", content: "" });
+  const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
+  const [likedIds, setLikedIds] = useState<number[]>([]);
+
+  useEffect(() => {
+    setComments(loadComments(slug));
+    setLoaded(true);
+    const saved = JSON.parse(localStorage.getItem("blog_comment_liked") || "[]") as number[];
+    setLikedIds(saved);
+  }, [slug]);
+
+  useEffect(() => {
+    if (loaded) saveComments(slug, comments);
+  }, [comments, loaded, slug]);
+
+  const isLiked = (id: number) => likedIds.includes(id);
+
+  const toggleLike = (id: number) => {
+    if (isLiked(id)) {
+      setLikedIds((prev) => { const next = prev.filter((lid) => lid !== id); localStorage.setItem("blog_comment_liked", JSON.stringify(next)); return next; });
+      setComments((prev) => prev.map((c) => (c.id === id ? { ...c, likes: c.likes - 1 } : c)));
+    } else {
+      setLikedIds((prev) => { const next = [...prev, id]; localStorage.setItem("blog_comment_liked", JSON.stringify(next)); return next; });
+      setComments((prev) => prev.map((c) => (c.id === id ? { ...c, likes: c.likes + 1 } : c)));
+    }
+  };
+
+  function handleAddComment(e: React.FormEvent) {
+    e.preventDefault();
+    if (!form.name.trim() || !form.content.trim()) return;
+    const newComment: BlogComment = {
+      id: Date.now(), name: form.name, content: form.content,
+      date: new Date().toISOString().split("T")[0], likes: 0, replies: [], showReplyForm: false,
+    };
+    setComments([newComment, ...comments]);
+    setForm({ name: "", content: "" });
+  }
+
+  const toggleReplyForm = (id: number, isTopLevel: boolean) => {
+    if (isTopLevel) {
+      setComments(comments.map((c) => (c.id === id ? { ...c, showReplyForm: !c.showReplyForm } : c)));
+    } else {
+      setComments(comments.map((c) => ({
+        ...c, replies: updateReplyDeep(c.replies, id, (r) => ({ ...r, showReplyForm: !r.showReplyForm })),
+      })));
+    }
+  };
+
+  const addReply = (parentId: number, parentReplyId: number | null, replyName: string, replyContent: string) => {
+    if (!replyName.trim() || !replyContent.trim()) return;
+    const reply: BlogReply = {
+      id: Date.now(), name: replyName, content: replyContent,
+      date: new Date().toISOString().split("T")[0], replies: [], showReplyForm: false,
+    };
+    if (parentReplyId === null) {
+      setComments(comments.map((c) =>
+        c.id === parentId ? { ...c, replies: [...c.replies, reply], showReplyForm: false } : c
+      ));
+    } else {
+      setComments(comments.map((c) => {
+        if (c.id !== parentId) return c;
+        return { ...c, replies: addReplyDeep(c.replies, parentReplyId, reply) };
+      }));
+    }
+  };
+
+  function handleDeleteComment(id: number) {
+    const removeDeep = (replies: BlogReply[]): BlogReply[] =>
+      replies.filter((r) => r.id !== id).map((r) => ({ ...r, replies: removeDeep(r.replies) }));
+    setComments(comments.filter((c) => c.id !== id).map((c) => ({ ...c, replies: removeDeep(c.replies) })));
+    setDeleteTarget(null);
+  }
+
+  return (
+    <GlassCard className="p-6">
+      <h3 className="font-semibold text-lg mb-6 flex items-center gap-2">💬 评论 ({comments.length})</h3>
+      <form onSubmit={handleAddComment} className="space-y-3 mb-8">
+        <Input placeholder="你的昵称" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
+          required className="rounded-xl" maxLength={30} />
+        <Textarea placeholder="写下你的评论..." value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })}
+          required className="rounded-xl min-h-[80px]" maxLength={500} />
+        <div className="flex justify-between items-center">
+          <span className="text-xs text-muted-foreground">{form.content.length}/500</span>
+          <Button type="submit" className="rounded-xl gap-2 bg-gradient-to-r from-purple-600 to-cyan-500 text-white">
+            <Send className="h-4 w-4" /> 发布评论
+          </Button>
+        </div>
+      </form>
+      <div className="space-y-4">
+        {comments.length === 0 && <p className="text-center text-sm text-muted-foreground py-6">还没有评论，来写第一条吧</p>}
+        {comments.map((comment) => (
+          <div key={comment.id} className="border border-border rounded-xl p-4">
+            <div className="flex items-start gap-3">
+              <div className="w-9 h-9 rounded-full bg-gradient-to-br from-purple-500 to-cyan-400 flex items-center justify-center shrink-0">
+                <User className="h-4 w-4 text-white" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="font-semibold text-sm">{comment.name}</span>
+                  <span className="text-xs text-muted-foreground">{comment.date}</span>
+                </div>
+                <p className="text-sm text-muted-foreground leading-relaxed">{comment.content}</p>
+                <div className="flex items-center gap-3 mt-2">
+                  <button onClick={() => toggleLike(comment.id)}
+                    className={`flex items-center gap-1 text-xs transition-colors ${isLiked(comment.id) ? "text-red-500" : "text-muted-foreground hover:text-red-500"}`}>
+                    <Heart className={`h-3 w-3 ${isLiked(comment.id) ? "fill-red-500" : ""}`} /> {comment.likes}
+                  </button>
+                  <button onClick={() => toggleReplyForm(comment.id, true)}
+                    className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors">
+                    <Reply className="h-3 w-3" /> 回复{comment.replies.length > 0 && ` (${comment.replies.length})`}
+                  </button>
+                  {isAdmin && deleteTarget === comment.id ? (
+                    <div className="flex items-center gap-1 ml-auto">
+                      <button onClick={() => handleDeleteComment(comment.id)} className="text-[10px] text-destructive hover:underline">确认</button>
+                      <button onClick={() => setDeleteTarget(null)} className="text-[10px] text-muted-foreground hover:underline">取消</button>
+                    </div>
+                  ) : isAdmin ? (
+                    <button onClick={() => setDeleteTarget(comment.id)} className="ml-auto text-muted-foreground hover:text-destructive">
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  ) : null}
+                </div>
+                <BlogReplyList
+                  replies={comment.replies} parentMsgId={comment.id}
+                  onToggleReply={(rid) => toggleReplyForm(rid, false)}
+                  onAddReply={(pid, n, c) => addReply(comment.id, pid, n, c)}
+                  deleteTarget={deleteTarget} setDeleteTarget={setDeleteTarget} onDeleteConfirm={handleDeleteComment}
+                />
+                {comment.showReplyForm && (
+                  <div className="mt-3">
+                    <BlogReplyForm onSubmit={(n, c) => addReply(comment.id, null, n, c)} parentName={comment.name} />
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </GlassCard>
+  );
+}
+
+function BlogReplyList({ replies, parentMsgId, onToggleReply, onAddReply, deleteTarget, setDeleteTarget, onDeleteConfirm }: {
+  replies: BlogReply[]; parentMsgId: number; onToggleReply: (id: number) => void;
+  onAddReply: (parentReplyId: number, name: string, content: string) => void;
+  deleteTarget: number | null; setDeleteTarget: (id: number | null) => void; onDeleteConfirm: (id: number) => void;
+}) {
+  const { isAdmin } = useAuth();
+  if (replies.length === 0) return null;
+  return (
+    <div className="mt-2 space-y-2">
+      {replies.map((reply) => (
+        <div key={reply.id} className="ml-4 pl-3 border-l-2 border-border">
+          <div className="text-sm">
+            <span className="font-medium text-primary">{reply.name}</span>
+            <span className="text-muted-foreground mx-1">→</span>
+            <span className="font-medium">...</span>
+            <span className="text-muted-foreground">：{reply.content}</span>
+            <span className="text-xs text-muted-foreground ml-2">{reply.date}</span>
+          </div>
+          <div className="flex items-center gap-3 mt-1 ml-1">
+            <button onClick={() => onToggleReply(reply.id)} className="text-xs text-muted-foreground hover:text-primary">
+              <Reply className="h-3 w-3 inline mr-0.5" /> 回复
+            </button>
+            {isAdmin && deleteTarget === reply.id ? (
+              <div className="flex items-center gap-1">
+                <button onClick={() => onDeleteConfirm(reply.id)} className="text-[10px] text-destructive hover:underline">确认</button>
+                <button onClick={() => setDeleteTarget(null)} className="text-[10px] text-muted-foreground hover:underline">取消</button>
+              </div>
+            ) : isAdmin ? (
+              <button onClick={() => setDeleteTarget(reply.id)} className="text-xs text-muted-foreground hover:text-destructive">
+                <Trash2 className="h-3 w-3" />
+              </button>
+            ) : null}
+          </div>
+          <BlogReplyList
+            replies={reply.replies} parentMsgId={parentMsgId}
+            onToggleReply={onToggleReply} onAddReply={onAddReply}
+            deleteTarget={deleteTarget} setDeleteTarget={setDeleteTarget} onDeleteConfirm={onDeleteConfirm}
+          />
+          {reply.showReplyForm && (
+            <div className="mt-2">
+              <BlogReplyForm onSubmit={(n, c) => onAddReply(reply.id, n, c)} parentName={reply.name} />
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function BlogReplyForm({ onSubmit, parentName }: { onSubmit: (name: string, content: string) => void; parentName: string }) {
+  const [name, setName] = useState("");
+  const [content, setContent] = useState("");
+  const handleSubmit = (e: React.FormEvent) => { e.preventDefault(); if (!name.trim() || !content.trim()) return; onSubmit(name, content); setName(""); setContent(""); };
+  return (
+    <form onSubmit={handleSubmit} className="flex gap-2 items-start">
+      <Input placeholder="昵称" value={name} onChange={(e) => setName(e.target.value)} required className="rounded-xl w-24 text-sm h-8" maxLength={20} />
+      <Input placeholder={`回复 ${parentName}...`} value={content} onChange={(e) => setContent(e.target.value)} required className="rounded-xl flex-1 text-sm h-8" maxLength={200} />
+      <Button type="submit" size="sm" className="rounded-xl h-8 shrink-0"><Send className="h-3 w-3" /></Button>
+    </form>
   );
 }

@@ -5,16 +5,18 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import {
   Bold, Italic, Underline, Heading1, Heading2, List, ListOrdered,
-  ImageIcon, Smile, ArrowLeft, Send, Quote, Trash2, Undo2, Redo2,
+  ImageIcon, Smile, ArrowLeft, Send, Quote, Trash2, Undo2, Redo2, Images,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { saveCustomPost, loadCustomPosts, deleteCustomPost } from "@/lib/blog-store";
 import { useAuth } from "@/lib/auth-context";
 import type { BlogPost } from "@/data/blog-posts";
 import { getAllMarkers } from "@/lib/travel-store";
 import { compressAndUpload } from "@/lib/cloudinary";
+import type { Photo } from "@/data/photos";
 
 const categories = [
   { key: "life", label: "生活" },
@@ -61,6 +63,7 @@ function NewBlogPageInner() {
   const [currentHeading, setCurrentHeading] = useState("");
   const [bgOpacity, setBgOpacity] = useState(60);
   const [isDark, setIsDark] = useState(false);
+  const [commentsEnabled, setCommentsEnabled] = useState(true);
 
   useEffect(() => {
     setIsDark(document.documentElement.classList.contains("dark"));
@@ -79,6 +82,15 @@ function NewBlogPageInner() {
   const [tagError, setTagError] = useState("");
   const [existingTags, setExistingTags] = useState(() => getAllTags());
 
+  // 已有图片弹窗
+  const [showExistingImages, setShowExistingImages] = useState(false);
+  const [existingPhotos, setExistingPhotos] = useState<Photo[]>([]);
+
+  // 加载已有的照片
+  useEffect(() => {
+    import("@/data/photos").then(mod => setExistingPhotos(mod.loadPhotos()));
+  }, []);
+
   // 编辑模式：加载已有文章
   useEffect(() => {
     if (!editSlug) return;
@@ -91,6 +103,7 @@ function NewBlogPageInner() {
     setSummary(post.summary || "");
     setCoverImage(post.coverImage || null);
     setCoverPosition(post.coverPosition ?? 50);
+    setCommentsEnabled(post.commentsEnabled !== false);
     // 延迟填充编辑器内容（等 DOM 就绪）
     setTimeout(() => {
       if (editorRef.current) {
@@ -262,6 +275,7 @@ function NewBlogPageInner() {
       content: html,
       coverImage: coverImage || undefined,
       coverPosition: coverImage ? coverPosition : undefined,
+      commentsEnabled: commentsEnabled,
     };
     saveCustomPost(post as any);
     router.push("/blog");
@@ -335,13 +349,22 @@ function NewBlogPageInner() {
               </div>
             </div>
           ) : (
-            <button
-              onClick={() => coverInputRef.current?.click()}
-              className="w-full py-8 rounded-xl border-2 border-dashed border-border hover:border-primary transition-colors text-muted-foreground hover:text-primary text-sm flex flex-col items-center gap-2"
-            >
-              <ImageIcon className="h-6 w-6" />
-              <span>添加封面图片（可选）</span>
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={() => coverInputRef.current?.click()}
+                className="flex-1 py-8 rounded-xl border-2 border-dashed border-border hover:border-primary transition-colors text-muted-foreground hover:text-primary text-sm flex flex-col items-center gap-2"
+              >
+                <ImageIcon className="h-6 w-6" />
+                <span>本地上传</span>
+              </button>
+              <button
+                onClick={() => { import("@/data/photos").then(mod => setExistingPhotos(mod.loadPhotos())); setShowExistingImages(true); }}
+                className="flex-1 py-8 rounded-xl border-2 border-dashed border-border hover:border-primary transition-colors text-muted-foreground hover:text-primary text-sm flex flex-col items-center gap-2"
+              >
+                <Images className="h-6 w-6" />
+                <span>已有图片</span>
+              </button>
+            </div>
           )}
           <input ref={coverInputRef} type="file" accept="image/*" className="hidden" onChange={handleCoverUpload} />
         </div>
@@ -542,6 +565,52 @@ function NewBlogPageInner() {
             document.execCommand("insertText", false, text);
           }}
         />
+
+        {/* 已有图片选择弹窗 */}
+        <Dialog open={showExistingImages} onOpenChange={setShowExistingImages}>
+          <DialogContent className="sm:max-w-2xl max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>选择已有图片作为封面</DialogTitle>
+            </DialogHeader>
+            <div className="grid grid-cols-3 gap-3 mt-2">
+              {existingPhotos.map((photo) => (
+                <button
+                  key={photo.id}
+                  onClick={() => { setCoverImage(photo.src); setShowExistingImages(false); }}
+                  className="group relative rounded-xl overflow-hidden border-2 border-border hover:border-primary transition-all hover:scale-[1.02]"
+                >
+                  <img src={photo.src} alt={photo.title} className="w-full h-24 object-cover" loading="lazy" />
+                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent p-2">
+                    <p className="text-[11px] text-white font-medium truncate">{photo.title}</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+            {existingPhotos.length === 0 && (
+              <p className="text-center text-sm text-muted-foreground py-8">暂无已有图片，请先在本地上传</p>
+            )}
+          </DialogContent>
+        </Dialog>
+
+        {/* 评论区开关（管理员可见） */}
+        <div className="flex items-center gap-3">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <button
+              type="button"
+              role="switch"
+              aria-checked={commentsEnabled}
+              onClick={() => setCommentsEnabled(!commentsEnabled)}
+              className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
+                commentsEnabled ? "bg-primary" : "bg-input"
+              }`}
+            >
+              <span className={`pointer-events-none block h-4 w-4 rounded-full bg-white shadow-lg ring-0 transition-transform duration-200 ${
+                commentsEnabled ? "translate-x-4" : "translate-x-0"
+              }`} />
+            </button>
+            <span className="text-xs text-muted-foreground select-none">💬 评论区（{commentsEnabled ? "开启" : "关闭"}）</span>
+          </label>
+        </div>
 
         {/* Save */}
         <div className="flex justify-end gap-3 pt-4 border-t border-border">

@@ -15,6 +15,7 @@ function sanitizePost(p: Partial<BlogPost>): BlogPost {
     content: p.content || "",
     coverImage: p.coverImage || undefined,
     coverPosition: p.coverPosition ?? undefined,
+    commentsEnabled: p.commentsEnabled !== false, // 默认开启
   };
 }
 
