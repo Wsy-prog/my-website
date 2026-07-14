@@ -35,18 +35,6 @@ export default function TravelPage() {
   useEffect(() => { setAllPosts(getAllPosts(blogPosts)); }, []);
   useEffect(() => {
     setMarkers(getAllMarkers());
-    // 从服务端同步旅行地点
-    import("@/lib/travel-store").then(mod => mod.loadMarkersFromServer()).then(serverMarkers => {
-      if (serverMarkers !== null) {
-        if (serverMarkers.length > 0) {
-          localStorage.setItem("travel_all_markers", JSON.stringify(serverMarkers));
-          setMarkers(serverMarkers);
-        } else {
-          // 服务端明确返回空数组，回退到内置数据+本地
-          setMarkers(getAllMarkers());
-        }
-      }
-    });
   }, []);
 
   function getPhotoCount(title: string): number {
@@ -89,7 +77,6 @@ export default function TravelPage() {
         : [...markers.slice(0, insertIdx), newMarker, ...markers.slice(insertIdx)];
       saveAllMarkers(updated);
       setMarkers(updated);
-      console.log("[travel] added marker, new count:", updated.length, "ids:", updated.map(m => m.id));
     } else {
       const updated = markers.map(m => m.id === editId ? { ...m, ...editForm } as TravelMarker : m);
       saveAllMarkers(updated);
