@@ -9,6 +9,8 @@ import { BackToTop } from "@/components/shared/BackToTop";
 import { siteConfig } from "@/lib/config";
 import "./globals.css";
 
+export const dynamic = "force-dynamic";
+
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
