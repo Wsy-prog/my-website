@@ -209,7 +209,7 @@ export function SettingsPanel() {
       {/* 只显示背景 按钮 */}
       <button
         onClick={toggleBgOnly}
-        className="bg-only-toggle fixed top-4 right-[4.5rem] z-[60] rounded-full p-2 transition-all duration-300 group"
+        className="bg-only-toggle fixed top-4 right-24 z-[60] rounded-full p-2 transition-all duration-300 group"
         title={bgOnly ? "退出背景模式" : "只显示背景"}
       >
         <div className="relative">
