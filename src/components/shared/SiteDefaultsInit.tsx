@@ -1,11 +1,21 @@
 "use client";
 
 import { useEffect } from "react";
-import { applySiteDefaults } from "@/lib/site-defaults";
 
-export function SiteDefaultsInit() {
+export function SiteDefaultsInit({ defaults }: { defaults: Record<string, string> | null }) {
   useEffect(() => {
-    applySiteDefaults();
-  }, []);
+    if (typeof window === "undefined" || !defaults) return;
+    // 用户手动改过背景或主题 → 不覆盖
+    if (localStorage.getItem("bg_customized") === "true") return;
+
+    // 将 API 默认值填充到 localStorage（如果 localStorage 还没有）
+    const keys = ["bg_type", "bg_active_src", "bg_blur", "bg_opacity", "theme", "card_theme"];
+    for (const k of keys) {
+      if (defaults[k] && !localStorage.getItem(k)) {
+        localStorage.setItem(k, String(defaults[k]));
+      }
+    }
+  }, [defaults]);
+
   return null;
 }

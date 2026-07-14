@@ -6,12 +6,18 @@ import { ThemeProvider } from "@/lib/theme-context";
 import { AuthProvider } from "@/lib/auth-context";
 import { SiteDefaultsInit } from "@/components/shared/SiteDefaultsInit";
 
-export function ClientProviders({ children }: { children: ReactNode }) {
+export function ClientProviders({
+  children,
+  defaults,
+}: {
+  children: ReactNode;
+  defaults: Record<string, string> | null;
+}) {
   return (
     <AuthProvider>
       <AnimationProvider>
         <ThemeProvider>
-          <SiteDefaultsInit />
+          <SiteDefaultsInit defaults={defaults} />
           {children}
         </ThemeProvider>
       </AnimationProvider>
