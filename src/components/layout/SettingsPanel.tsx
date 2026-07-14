@@ -37,10 +37,9 @@ const DEFAULT_ASSETS: BgAsset[] = [
   { id: "__bg_image", name: "默认壁纸", type: "image", src: "/images/bg.jpg" },
 ];
 
-function saveAssets(assets: BgAsset[]) {
+function saveAssets(assets: BgAsset[], sync = true) {
   try { localStorage.setItem(BG_ASSETS_KEY, JSON.stringify(assets)); } catch { /* quota */ }
-  // 同步到 API，让其他人也能看到新壁纸
-  syncAssetsToApi(assets);
+  if (sync) syncAssetsToApi(assets);
 }
 
 async function syncAssetsToApi(assets: BgAsset[]) {
@@ -58,7 +57,20 @@ async function loadAssetsFromApi(): Promise<BgAsset[]> {
     const res = await fetch("/api/data/bg_assets");
     const json = await res.json();
     if (json.exists && Array.isArray(json.data)) {
-      return json.data as BgAsset[];
+      const apiAssets = json.data as BgAsset[];
+      // 合并：API 有但本地没有的壁纸加到本地
+      const local = loadAssets();
+      const localIds = new Set(local.map(a => a.id));
+      const merged = [...local];
+      for (const a of apiAssets) {
+        if (!localIds.has(a.id)) {
+          merged.push(a);
+        }
+      }
+      if (merged.length !== local.length) {
+        saveAssets(merged, false); // 只保存本地，不同步回 API 避免覆盖
+      }
+      return merged;
     }
   } catch { /* 网络错误 */ }
   return [];
@@ -68,7 +80,7 @@ function loadAssets(): BgAsset[] {
   if (typeof window === "undefined") return DEFAULT_ASSETS;
   try {
     const raw = localStorage.getItem(BG_ASSETS_KEY);
-    if (!raw) { saveAssets(DEFAULT_ASSETS); return DEFAULT_ASSETS; }
+    if (!raw) return DEFAULT_ASSETS;
     return JSON.parse(raw);
   } catch { return DEFAULT_ASSETS; }
 }
