@@ -88,20 +88,31 @@ function NewBlogPageInner() {
 
   // 收集所有已有的图片：摄影画廊照片 + 文章封面 + 背景图片
   useEffect(() => {
-    const urlSet = new Set<string>();
-    // 照片
-    import("@/data/photos").then(mod => {
-      mod.loadPhotos().forEach((p: Photo) => { if (p.src) urlSet.add(p.src); });
+    const collect = () => {
+      const urlSet = new Set<string>();
+      // 照片
+      import("@/data/photos").then(mod => {
+        mod.loadPhotos().forEach((p: Photo) => { if (p.src) urlSet.add(p.src); });
+      }).finally(() => {
+        // 已有文章的封面
+        const posts = loadCustomPosts();
+        posts.forEach((p) => { if (p.coverImage) urlSet.add(p.coverImage); });
+        // 背景图片
+        try {
+          const assets = JSON.parse(localStorage.getItem("bg_assets") || "[]") as { src: string; type: string }[];
+          assets.forEach((a) => { if (a.type === "image" && a.src) urlSet.add(a.src); });
+        } catch {}
+        setExistingImages(Array.from(urlSet));
+      });
+    };
+    collect();
+    // 也尝试从服务端拉照片
+    import("@/data/photos").then(mod => mod.loadPhotosFromServer()).then(serverPhotos => {
+      if (serverPhotos.length > 0) {
+        localStorage.setItem("gallery_photos", JSON.stringify(serverPhotos));
+        collect();
+      }
     });
-    // 已有文章的封面
-    const posts = loadCustomPosts();
-    posts.forEach((p) => { if (p.coverImage) urlSet.add(p.coverImage); });
-    // 背景图片
-    try {
-      const assets = JSON.parse(localStorage.getItem("bg_assets") || "[]") as { src: string; type: string }[];
-      assets.forEach((a) => { if (a.type === "image" && a.src) urlSet.add(a.src); });
-    } catch {}
-    setExistingImages(Array.from(urlSet));
   }, []);
 
   // 编辑模式：加载已有文章
@@ -373,14 +384,26 @@ function NewBlogPageInner() {
               <button
                 onClick={() => {
                   const urlSet = new Set<string>();
-                  import("@/data/photos").then(mod => mod.loadPhotos().forEach((p: Photo) => { if (p.src) urlSet.add(p.src); }));
-                  const posts = loadCustomPosts();
-                  posts.forEach((p) => { if (p.coverImage) urlSet.add(p.coverImage); });
-                  try {
-                    const assets = JSON.parse(localStorage.getItem("bg_assets") || "[]") as { src: string; type: string }[];
-                    assets.forEach((a) => { if (a.type === "image" && a.src) urlSet.add(a.src); });
-                  } catch {}
-                  setExistingImages(Array.from(urlSet));
+                  // 先从 localStorage 收集
+                  import("@/data/photos").then(mod => {
+                    mod.loadPhotos().forEach((p: Photo) => { if (p.src) urlSet.add(p.src); });
+                  }).finally(() => {
+                    try {
+                      const assets = JSON.parse(localStorage.getItem("bg_assets") || "[]") as { src: string; type: string }[];
+                      assets.forEach((a) => { if (a.type === "image" && a.src) urlSet.add(a.src); });
+                    } catch {}
+                    const posts = loadCustomPosts();
+                    posts.forEach((p) => { if (p.coverImage) urlSet.add(p.coverImage); });
+                    setExistingImages(Array.from(urlSet));
+                  });
+                  // 再尝试从服务端拉照片
+                  import("@/data/photos").then(mod => mod.loadPhotosFromServer()).then(serverPhotos => {
+                    if (serverPhotos.length > 0) {
+                      localStorage.setItem("gallery_photos", JSON.stringify(serverPhotos));
+                      serverPhotos.forEach((p: Photo) => { if (p.src) urlSet.add(p.src); });
+                      setExistingImages(Array.from(urlSet));
+                    }
+                  });
                   setShowExistingImages(true);
                 }}
                 className="flex-1 py-8 rounded-xl border-2 border-dashed border-border hover:border-primary transition-colors text-muted-foreground hover:text-primary text-sm flex flex-col items-center gap-2"
