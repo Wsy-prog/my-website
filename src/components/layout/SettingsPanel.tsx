@@ -37,6 +37,33 @@ const DEFAULT_ASSETS: BgAsset[] = [
   { id: "__bg_image", name: "默认壁纸", type: "image", src: "/images/bg.jpg" },
 ];
 
+function saveAssets(assets: BgAsset[]) {
+  try { localStorage.setItem(BG_ASSETS_KEY, JSON.stringify(assets)); } catch { /* quota */ }
+  // 同步到 API，让其他人也能看到新壁纸
+  syncAssetsToApi(assets);
+}
+
+async function syncAssetsToApi(assets: BgAsset[]) {
+  try {
+    await fetch("/api/data/bg_assets", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ data: assets }),
+    });
+  } catch { /* 静默 */ }
+}
+
+async function loadAssetsFromApi(): Promise<BgAsset[]> {
+  try {
+    const res = await fetch("/api/data/bg_assets");
+    const json = await res.json();
+    if (json.exists && Array.isArray(json.data)) {
+      return json.data as BgAsset[];
+    }
+  } catch { /* 网络错误 */ }
+  return [];
+}
+
 function loadAssets(): BgAsset[] {
   if (typeof window === "undefined") return DEFAULT_ASSETS;
   try {
@@ -44,9 +71,6 @@ function loadAssets(): BgAsset[] {
     if (!raw) { saveAssets(DEFAULT_ASSETS); return DEFAULT_ASSETS; }
     return JSON.parse(raw);
   } catch { return DEFAULT_ASSETS; }
-}
-function saveAssets(assets: BgAsset[]) {
-  try { localStorage.setItem(BG_ASSETS_KEY, JSON.stringify(assets)); } catch { /* quota */ }
 }
 
 function getStored(): BgSettings {
@@ -113,6 +137,13 @@ export function SettingsPanel() {
   useEffect(() => {
     setSettings(getStored());
     setAssets(loadAssets());
+    // 从 API 拉取最新的壁纸列表，覆盖本地（确保能看到别人新增的壁纸）
+    loadAssetsFromApi().then(apiAssets => {
+      if (apiAssets.length > 0) {
+        localStorage.setItem(BG_ASSETS_KEY, JSON.stringify(apiAssets));
+        setAssets(apiAssets);
+      }
+    });
   }, []);
 
   useEffect(() => {
