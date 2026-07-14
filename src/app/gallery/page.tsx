@@ -59,6 +59,23 @@ function GalleryPageInner() {
   useEffect(() => {
     setPhotos(loadPhotos());
     setLoaded(true);
+    // 尝试从服务端同步
+    import("@/data/photos").then(mod => mod.loadPhotosFromServer()).then(serverPhotos => {
+      if (serverPhotos.length > 0) {
+        const local = loadPhotos();
+        // 合并：服务端有但本地没有的照片添加上去
+        const localIds = new Set(local.map(p => p.id));
+        const merged = [...local];
+        for (const sp of serverPhotos) {
+          if (!localIds.has(sp.id)) {
+            merged.push(sp);
+            localIds.add(sp.id);
+          }
+        }
+        localStorage.setItem("gallery_photos", JSON.stringify(merged));
+        setPhotos(merged);
+      }
+    });
   }, []);
 
   // 同步 location param 到搜索框
