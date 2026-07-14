@@ -66,8 +66,6 @@ export function getAllMarkers(): TravelMarker[] {
       const existing = storedMap.get(def.id);
       if (existing) {
         updated.push({ ...existing, lat: def.lat, lng: def.lng, type: def.type });
-      } else {
-        updated.push(def);
       }
     }
     const defaultIds = new Set(travelMarkers.map(m => m.id));
@@ -78,9 +76,5 @@ export function getAllMarkers(): TravelMarker[] {
     return updated;
   }
   const stored = loadStoredMarkers();
-  if (stored.length === 0) {
-    saveAllMarkers(travelMarkers);
-    return travelMarkers;
-  }
   return stored;
 }
