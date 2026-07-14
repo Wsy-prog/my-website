@@ -84,11 +84,19 @@ function NewBlogPageInner() {
 
   // 已有图片弹窗
   const [showExistingImages, setShowExistingImages] = useState(false);
-  const [existingPhotos, setExistingPhotos] = useState<Photo[]>([]);
+  const [existingImages, setExistingImages] = useState<string[]>([]);
 
-  // 加载已有的照片
+  // 收集所有已有的图片：摄影画廊的照片 + 已有文章的封面
   useEffect(() => {
-    import("@/data/photos").then(mod => setExistingPhotos(mod.loadPhotos()));
+    const urls: string[] = [];
+    // 照片
+    import("@/data/photos").then(mod => {
+      mod.loadPhotos().forEach((p: Photo) => { if (p.src) urls.push(p.src); });
+    });
+    // 已有文章的封面
+    const posts = loadCustomPosts();
+    posts.forEach((p) => { if (p.coverImage) urls.push(p.coverImage); });
+    setExistingImages(urls);
   }, []);
 
   // 编辑模式：加载已有文章
@@ -358,7 +366,14 @@ function NewBlogPageInner() {
                 <span>本地上传</span>
               </button>
               <button
-                onClick={() => { import("@/data/photos").then(mod => setExistingPhotos(mod.loadPhotos())); setShowExistingImages(true); }}
+                onClick={() => {
+                  const urls: string[] = [];
+                  import("@/data/photos").then(mod => mod.loadPhotos().forEach((p: Photo) => { if (p.src) urls.push(p.src); }));
+                  const posts = loadCustomPosts();
+                  posts.forEach((p) => { if (p.coverImage) urls.push(p.coverImage); });
+                  setExistingImages(urls);
+                  setShowExistingImages(true);
+                }}
                 className="flex-1 py-8 rounded-xl border-2 border-dashed border-border hover:border-primary transition-colors text-muted-foreground hover:text-primary text-sm flex flex-col items-center gap-2"
               >
                 <Images className="h-6 w-6" />
@@ -573,21 +588,18 @@ function NewBlogPageInner() {
               <DialogTitle>选择已有图片作为封面</DialogTitle>
             </DialogHeader>
             <div className="grid grid-cols-3 gap-3 mt-2">
-              {existingPhotos.map((photo) => (
+              {existingImages.map((src, i) => (
                 <button
-                  key={photo.id}
-                  onClick={() => { setCoverImage(photo.src); setShowExistingImages(false); }}
+                  key={i}
+                  onClick={() => { setCoverImage(src); setShowExistingImages(false); }}
                   className="group relative rounded-xl overflow-hidden border-2 border-border hover:border-primary transition-all hover:scale-[1.02]"
                 >
-                  <img src={photo.src} alt={photo.title} className="w-full h-24 object-cover" loading="lazy" />
-                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent p-2">
-                    <p className="text-[11px] text-white font-medium truncate">{photo.title}</p>
-                  </div>
+                  <img src={src} alt="" className="w-full h-24 object-cover" loading="lazy" />
                 </button>
               ))}
             </div>
-            {existingPhotos.length === 0 && (
-              <p className="text-center text-sm text-muted-foreground py-8">暂无已有图片，请先在本地上传</p>
+            {existingImages.length === 0 && (
+              <p className="text-center text-sm text-muted-foreground py-8">暂无已有图片</p>
             )}
           </DialogContent>
         </Dialog>
