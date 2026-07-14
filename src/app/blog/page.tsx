@@ -105,8 +105,8 @@ function BlogPageInner() {
     setAllPosts(getAllPosts(blogPosts));
     // 尝试从服务端同步数据
     import("@/lib/blog-store").then(mod => mod.loadCustomPostsServer()).then(serverPosts => {
-      if (serverPosts.length > 0) {
-        // 以服务端数据为准覆盖本地
+      // 只要成功拿到数据（即使为空数组），就以服务端为准覆盖本地
+      if (serverPosts !== null) {
         localStorage.setItem("blog_custom_posts", JSON.stringify(serverPosts));
       }
       setAllPosts(getAllPosts(blogPosts));

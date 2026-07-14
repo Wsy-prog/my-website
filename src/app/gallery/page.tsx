@@ -61,7 +61,7 @@ function GalleryPageInner() {
     setLoaded(true);
     // 以服务端数据为准覆盖
     import("@/data/photos").then(mod => mod.loadPhotosFromServer()).then(serverPhotos => {
-      if (serverPhotos.length > 0 || true) {
+      if (serverPhotos !== null) {
         localStorage.setItem("gallery_photos", JSON.stringify(serverPhotos));
         setPhotos(loadPhotos());
       }

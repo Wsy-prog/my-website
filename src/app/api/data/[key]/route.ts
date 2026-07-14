@@ -4,8 +4,16 @@ import { getAuthFromRequest } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
-// 无需认证即可写入的 key（留言板）
-const PUBLIC_WRITE_KEYS = ["guestbook_messages"];
+// 无需认证即可写入的 key（留言板 + 博客文章 + 照片 + 旅行地点 — 所有数据同步）
+const PUBLIC_WRITE_KEYS = [
+  "guestbook_messages",
+  "blog_custom_posts",
+  "gallery_photos",
+  "travel_all_markers",
+  "music_tracks",
+  "bg_assets",
+  "site_defaults",
+];
 
 // GET /api/data/{key} — 读取数据（公开）
 export async function GET(
