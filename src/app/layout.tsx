@@ -40,13 +40,14 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col">
+        {/* 背景服务端渲染，避免客户端白屏 */}
+        <BackgroundLayer
+          type={siteConfig.background.type}
+          src={siteConfig.background.src}
+          blur={siteConfig.background.blur}
+          overlayOpacity={siteConfig.background.overlayOpacity}
+        />
         <ClientProviders>
-          <BackgroundLayer
-            type={siteConfig.background.type}
-            src={siteConfig.background.src}
-            blur={siteConfig.background.blur}
-            overlayOpacity={siteConfig.background.overlayOpacity}
-          />
           <Navbar />
           <main className="flex-1 pt-16">
             {children}

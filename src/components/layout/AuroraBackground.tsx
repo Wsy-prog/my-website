@@ -1,5 +1,3 @@
-"use client";
-
 export function AuroraBackground() {
   return (
     <div className="aurora-container" aria-hidden="true">
