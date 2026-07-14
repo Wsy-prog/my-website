@@ -102,7 +102,7 @@ function setLikedIds(ids: number[]) {
 
 export default function GuestbookPage() {
   const { isAdmin } = useAuth();
-  const [messages, setMessages] = useState<Message[]>(initialMessages);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [form, setForm] = useState({ name: "", content: "" });
   const [visitorCount, setVisitorCount] = useState(0);
   const [loaded, setLoaded] = useState(false);

@@ -63,6 +63,7 @@ function GalleryPageInner() {
     import("@/data/photos").then(mod => mod.loadPhotosFromServer()).then(serverPhotos => {
       if (serverPhotos.length > 0 || true) {
         localStorage.setItem("gallery_photos", JSON.stringify(serverPhotos));
+        localStorage.setItem("gallery_photos_server_loaded", "1");
         setPhotos(loadPhotos());
       }
     });

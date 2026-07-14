@@ -101,7 +101,10 @@ export function loadPhotos(): Photo[] {
   try {
     const raw = localStorage.getItem(PHOTOS_KEY);
     if (!raw) {
-      // 首次使用：返回默认照片中未被删除的部分
+      // 已从服务端同步删除标记的，直接返回空的
+      const serverData = localStorage.getItem("gallery_photos_server_loaded");
+      if (serverData === "1") return [];
+      // 否则返回默认照片中未被删除的部分
       const deletedIds = getDeletedDefaultIds();
       if (deletedIds.size > 0) {
         return defaultPhotos.filter((p) => !deletedIds.has(p.id));
@@ -111,10 +114,13 @@ export function loadPhotos(): Photo[] {
     const saved = JSON.parse(raw) as Photo[];
     const savedIds = new Set(saved.map((p) => p.id));
     const deletedIds = getDeletedDefaultIds();
-    // 只补充那些没有被标记删除的默认照片
-    const newDefaults = defaultPhotos.filter((p) => !savedIds.has(p.id) && !deletedIds.has(p.id));
-    if (newDefaults.length > 0) {
-      return [...newDefaults, ...saved];
+    // 只有没有从服务端同步过才补充默认照片
+    const serverLoaded = localStorage.getItem("gallery_photos_server_loaded") === "1";
+    if (!serverLoaded) {
+      const newDefaults = defaultPhotos.filter((p) => !savedIds.has(p.id) && !deletedIds.has(p.id));
+      if (newDefaults.length > 0) {
+        return [...newDefaults, ...saved];
+      }
     }
     return saved;
   } catch {
