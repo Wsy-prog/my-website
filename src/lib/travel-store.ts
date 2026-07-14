@@ -44,15 +44,18 @@ export function saveAllMarkers(markers: TravelMarker[]) {
 }
 
 /** 从服务端加载标记（异步） */
-export async function loadMarkersFromServer(): Promise<TravelMarker[]> {
+export async function loadMarkersFromServer(): Promise<TravelMarker[] | null> {
   try {
     const res = await fetch("/api/data/travel_all_markers");
     const json = await res.json();
     if (json.exists && Array.isArray(json.data)) {
       return json.data;
     }
+    if (json.exists) {
+      return [];
+    }
   } catch { /* 网络错误 */ }
-  return [];
+  return null;
 }
 
 export function getAllMarkers(): TravelMarker[] {

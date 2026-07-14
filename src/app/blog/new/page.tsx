@@ -109,7 +109,7 @@ function NewBlogPageInner() {
     collect();
     // 也尝试从服务端拉照片
     import("@/data/photos").then(mod => mod.loadPhotosFromServer()).then(serverPhotos => {
-      if (serverPhotos.length > 0) {
+      if (serverPhotos && serverPhotos.length > 0) {
         localStorage.setItem("gallery_photos", JSON.stringify(serverPhotos));
         collect();
       }
@@ -399,7 +399,7 @@ function NewBlogPageInner() {
                   });
                   // 再尝试从服务端拉照片
                   import("@/data/photos").then(mod => mod.loadPhotosFromServer()).then(serverPhotos => {
-                    if (serverPhotos.length > 0) {
+                    if (serverPhotos && serverPhotos.length > 0) {
                       localStorage.setItem("gallery_photos", JSON.stringify(serverPhotos));
                       serverPhotos.forEach((p: Photo) => { if (p.src) urlSet.add(p.src); });
                       setExistingImages(Array.from(urlSet));

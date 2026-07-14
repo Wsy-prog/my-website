@@ -30,15 +30,19 @@ function getToken(): string | null {
 
 // ========== 从服务端加载 ==========
 
-export async function loadCustomPostsServer(): Promise<BlogPost[]> {
+export async function loadCustomPostsServer(): Promise<BlogPost[] | null> {
   try {
     const res = await fetch("/api/data/blog_custom_posts");
     const json = await res.json();
     if (json.exists && Array.isArray(json.data)) {
       return json.data.map(sanitizePost);
     }
+    // exists 但 data 为 null/undefined → 服务端明确说没数据，返回空数组
+    if (json.exists) {
+      return [];
+    }
   } catch { /* 网络错误，使用本地数据 */ }
-  return [];
+  return null;
 }
 
 /** 客户端使用的同步加载（从 localStorage 缓存读取） */

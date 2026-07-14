@@ -39,15 +39,18 @@ async function syncToApi(photos: Photo[]) {
 }
 
 /** 从服务端加载照片（异步），用于初始化 */
-export async function loadPhotosFromServer(): Promise<Photo[]> {
+export async function loadPhotosFromServer(): Promise<Photo[] | null> {
   try {
     const res = await fetch("/api/data/gallery_photos");
     const json = await res.json();
     if (json.exists && Array.isArray(json.data)) {
       return json.data;
     }
+    if (json.exists) {
+      return [];
+    }
   } catch { /* 网络错误 */ }
-  return [];
+  return null;
 }
 
 export function loadPhotos(): Photo[] {

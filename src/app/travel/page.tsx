@@ -37,9 +37,15 @@ export default function TravelPage() {
     setMarkers(getAllMarkers());
     // 从服务端同步旅行地点
     import("@/lib/travel-store").then(mod => mod.loadMarkersFromServer()).then(serverMarkers => {
-      if (serverMarkers.length > 0) {
-        localStorage.setItem("travel_all_markers", JSON.stringify(serverMarkers));
-        setMarkers(serverMarkers);
+      if (serverMarkers !== null) {
+        if (serverMarkers.length > 0) {
+          localStorage.setItem("travel_all_markers", JSON.stringify(serverMarkers));
+          setMarkers(serverMarkers);
+        } else {
+          // 服务端明确返回空数组，也覆盖本地
+          localStorage.removeItem("travel_all_markers");
+          setMarkers([]);
+        }
       }
     });
   }, []);
