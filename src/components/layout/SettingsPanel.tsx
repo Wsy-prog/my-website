@@ -97,7 +97,7 @@ function applySettings(s: BgSettings) {
 export function SettingsPanel() {
   const { isAdmin } = useAuth();
   const [open, setOpen] = useState(false);
-  const [settings, setSettings] = useState<BgSettings>({ type: "aurora", blur: 0, opacity: 0.3 });
+  const [settings, setSettings] = useState<BgSettings>({ type: "none", blur: 0, opacity: 0.3 });
   const [assets, setAssets] = useState<BgAsset[]>([]);
   const [manageOpen, setManageOpen] = useState(false);
   const [cardsOpen, setCardsOpen] = useState(true);
