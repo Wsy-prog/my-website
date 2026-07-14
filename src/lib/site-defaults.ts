@@ -47,28 +47,12 @@ export function applySiteDefaults() {
     .then(r => r.json())
     .then(json => {
       if (json.exists && json.data) {
+        // 先保存到 localStorage（这样下次 SSR 前就能读到）
         for (const [k, v] of Object.entries(json.data)) {
           localStorage.setItem(k, String(v));
         }
-        // 背景
-        if (json.data.bg_active_src) {
-          const img = document.querySelector(".bg-layer-image") as HTMLElement;
-          if (img) { img.style.display = ""; img.style.backgroundImage = `url(${json.data.bg_active_src})`; }
-        }
-        if (json.data.bg_blur) {
-          const img = document.querySelector(".bg-layer-image") as HTMLElement;
-          if (img) img.style.filter = `blur(${json.data.bg_blur}px)`;
-        }
-        if (json.data.bg_type === "aurora") {
-          const aurora = document.querySelector(".aurora-container") as HTMLElement;
-          if (aurora) aurora.style.display = "";
-        }
-        // 主题
-        if (json.data.theme === "dark") document.documentElement.classList.add("dark");
-        else if (json.data.theme === "light") document.documentElement.classList.remove("dark");
-        // 卡片
-        if (json.data.card_theme === "clean") document.documentElement.classList.add("theme-clean");
-        else document.documentElement.classList.remove("theme-clean");
+        // 直接刷新页面让服务端用新默认重新渲染，避免客户端覆盖的闪烁
+        window.location.reload();
       }
     })
     .catch(() => {});
