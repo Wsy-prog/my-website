@@ -32,6 +32,7 @@ export const defaultPhotos: Photo[] = [
 ];
 
 const PHOTOS_KEY = "gallery_photos";
+const DELETED_DEFAULTS_KEY = "gallery_deleted_defaults";
 const TOKEN_KEY = "admin_token";
 
 function getToken(): string | null {
@@ -41,6 +42,32 @@ function getToken(): string | null {
   } catch {
     return null;
   }
+}
+
+/** 获取已被用户删除的默认照片 ID 集合 */
+function getDeletedDefaultIds(): Set<number> {
+  if (typeof window === "undefined") return new Set();
+  try {
+    const raw = localStorage.getItem(DELETED_DEFAULTS_KEY);
+    if (!raw) return new Set();
+    return new Set(JSON.parse(raw) as number[]);
+  } catch {
+    return new Set();
+  }
+}
+
+/** 标记一个默认照片为已删除（持久化） */
+export function markDefaultDeleted(photoId: number) {
+  if (typeof window === "undefined") return;
+  const deleted = getDeletedDefaultIds();
+  deleted.add(photoId);
+  localStorage.setItem(DELETED_DEFAULTS_KEY, JSON.stringify(Array.from(deleted)));
+}
+
+/** 重置所有默认照片（让被删的默认照片重新出现） */
+export function resetDeletedDefaults() {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem(DELETED_DEFAULTS_KEY);
 }
 
 async function syncToApi(photos: Photo[]) {
@@ -73,10 +100,19 @@ export function loadPhotos(): Photo[] {
   if (typeof window === "undefined") return defaultPhotos;
   try {
     const raw = localStorage.getItem(PHOTOS_KEY);
-    if (!raw) return defaultPhotos;
+    if (!raw) {
+      // 首次使用：返回默认照片中未被删除的部分
+      const deletedIds = getDeletedDefaultIds();
+      if (deletedIds.size > 0) {
+        return defaultPhotos.filter((p) => !deletedIds.has(p.id));
+      }
+      return defaultPhotos;
+    }
     const saved = JSON.parse(raw) as Photo[];
     const savedIds = new Set(saved.map((p) => p.id));
-    const newDefaults = defaultPhotos.filter((p) => !savedIds.has(p.id));
+    const deletedIds = getDeletedDefaultIds();
+    // 只补充那些没有被标记删除的默认照片
+    const newDefaults = defaultPhotos.filter((p) => !savedIds.has(p.id) && !deletedIds.has(p.id));
     if (newDefaults.length > 0) {
       return [...newDefaults, ...saved];
     }

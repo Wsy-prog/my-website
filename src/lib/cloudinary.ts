@@ -1,6 +1,26 @@
 const CLOUD_NAME = "ii40ztmn";
 const UPLOAD_PRESET = "my_website";
 
+/** 上传任意文件到 Cloudinary（图片/音频/视频等），返回 URL */
+export async function uploadToCloudinary(file: File): Promise<string> {
+  const form = new FormData();
+  form.append("file", file);
+  form.append("upload_preset", UPLOAD_PRESET);
+
+  const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/auto/upload`, {
+    method: "POST",
+    body: form,
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as any).error?.message || "上传失败");
+  }
+
+  const data = await res.json();
+  return data.secure_url as string;
+}
+
 /** 上传图片到 Cloudinary，返回 URL */
 export async function uploadImage(file: File): Promise<string> {
   const form = new FormData();
@@ -19,6 +39,11 @@ export async function uploadImage(file: File): Promise<string> {
 
   const data = await res.json();
   return data.secure_url as string;
+}
+
+/** 上传音频文件到 Cloudinary（mp3/wav 等），返回 URL */
+export async function uploadAudio(file: File): Promise<string> {
+  return uploadToCloudinary(file);
 }
 
 /** 压缩图片后上传（适用于博客/摄影场景，maxW 为最大宽度） */

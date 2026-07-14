@@ -374,12 +374,20 @@ function NewBlogPageInner() {
 
             {tagMenu !== "closed" && (
               <div className="absolute top-full left-0 mt-1 z-50 w-64 rounded-xl border border-border bg-popover shadow-xl p-3">
+                {/* 关闭按钮 */}
+                <button
+                  onClick={() => { setTagMenu("closed"); setTagSearch(""); setCustomTagInput(""); setTagError(""); }}
+                  className="absolute top-2 right-2 w-5 h-5 rounded-full hover:bg-accent flex items-center justify-center text-muted-foreground hover:text-foreground text-xs transition-colors"
+                >✕</button>
                 {tagMenu === "main" && (
                   <div className="space-y-1">
                     <button onClick={() => { setTagMenu("existing"); setTagSearch(""); }}
                       className="w-full text-left px-3 py-2 rounded-lg text-sm hover:bg-accent">📋 原有标签</button>
                     <button onClick={() => { setTagMenu("custom"); setCustomTagInput(""); setTagError(""); }}
                       className="w-full text-left px-3 py-2 rounded-lg text-sm hover:bg-accent">✏️ 自定义标签</button>
+                    <hr className="border-border my-1" />
+                    <button onClick={() => { setTagMenu("closed"); setTagSearch(""); setCustomTagInput(""); setTagError(""); }}
+                      className="w-full text-left px-3 py-2 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-accent/50">取消</button>
                   </div>
                 )}
                 {tagMenu === "existing" && (
@@ -396,6 +404,8 @@ function NewBlogPageInner() {
                         <p className="text-xs text-muted-foreground text-center py-3">没有匹配的标签</p>
                       )}
                     </div>
+                    <button onClick={() => { setTagMenu("closed"); setTagSearch(""); }}
+                      className="w-full text-center text-xs text-muted-foreground hover:text-foreground py-1.5 rounded-lg hover:bg-accent/50 mt-1">取消</button>
                   </div>
                 )}
                 {tagMenu === "custom" && (
@@ -408,6 +418,8 @@ function NewBlogPageInner() {
                     {tagError && (<p className="text-xs text-amber-500 bg-amber-500/10 px-3 py-1.5 rounded-lg">{tagError}</p>)}
                     <Button size="sm" onClick={confirmCustomTag} disabled={!customTagInput.trim()}
                       className="w-full rounded-lg text-xs">确认添加</Button>
+                    <button onClick={() => { setTagMenu("closed"); setCustomTagInput(""); setTagError(""); }}
+                      className="w-full text-center text-xs text-muted-foreground hover:text-foreground py-1.5 rounded-lg hover:bg-accent/50">取消</button>
                   </div>
                 )}
               </div>

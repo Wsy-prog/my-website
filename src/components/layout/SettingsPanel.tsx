@@ -12,7 +12,7 @@ import { useAnimation } from "@/lib/animation-context";
 import { useCardTheme } from "@/lib/theme-context";
 import { useAuth } from "@/lib/auth-context";
 import { syncSiteDefaults } from "@/lib/site-defaults";
-import { compressAndUpload } from "@/lib/cloudinary";
+import { compressAndUpload, uploadToCloudinary } from "@/lib/cloudinary";
 
 type BgType = "aurora" | "image" | "video" | "none";
 
@@ -142,15 +142,14 @@ export function SettingsPanel() {
   }
 
   // 导入视频（本地文件）
-  function importVideoFile(file: File) {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const asset: BgAsset = { id: Date.now().toString(36), name: file.name.replace(/\.[^.]+$/, ""), type: "video", src: reader.result as string };
+  async function importVideoFile(file: File) {
+    try {
+      const url = await uploadToCloudinary(file);
+      const asset: BgAsset = { id: Date.now().toString(36), name: file.name.replace(/\.[^.]+$/, ""), type: "video", src: url };
       const updated = [...assets, asset];
       setAssets(updated); saveAssets(updated);
       selectAsset(asset);
-    };
-    reader.readAsDataURL(file);
+    } catch { /* ignore */ }
   }
 
   // 导入视频（URL）
@@ -319,19 +318,20 @@ export function SettingsPanel() {
         <Separator />
 
         {/* ===== 背景管理（可折叠） ===== */}
-        <section>
-          <button onClick={() => setManageOpen(!manageOpen)}
-            className="w-full flex items-center justify-between text-sm font-semibold text-muted-foreground uppercase tracking-wide hover:text-foreground transition-colors">
-            <span>🖼️ 背景管理</span>
-            <ChevronDown className={`h-4 w-4 transition-transform ${manageOpen ? "rotate-180" : ""}`} />
-          </button>
+        {isAdmin && (
+          <section>
+            <button onClick={() => setManageOpen(!manageOpen)}
+              className="w-full flex items-center justify-between text-sm font-semibold text-muted-foreground uppercase tracking-wide hover:text-foreground transition-colors">
+              <span>🖼️ 背景管理</span>
+              <ChevronDown className={`h-4 w-4 transition-transform ${manageOpen ? "rotate-180" : ""}`} />
+            </button>
 
-          {manageOpen && (
-            <div className="mt-3 space-y-2">
-              {/* 所有背景列表 */}
-              <div className="space-y-1.5 max-h-48 overflow-y-auto">
-                {assets.map((asset) => (
-                  <div key={asset.id} className={`p-2 rounded-lg border flex items-center gap-2 ${activeAssetId === asset.id ? "border-primary/30 bg-primary/5" : "border-border"}`}>
+            {manageOpen && (
+              <div className="mt-3 space-y-2">
+                {/* 所有背景列表 */}
+                <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                  {assets.map((asset) => (
+                    <div key={asset.id} className={`p-2 rounded-lg border flex items-center gap-2 ${activeAssetId === asset.id ? "border-primary/30 bg-primary/5" : "border-border"}`}>
                     {/* 缩略图 */}
                     {asset.id === "__aurora" ? (
                       <div className="w-9 h-7 rounded bg-gradient-to-br from-purple-500/30 to-cyan-400/30 flex items-center justify-center shrink-0 text-sm">🌌</div>
@@ -397,6 +397,7 @@ export function SettingsPanel() {
             </div>
           )}
         </section>
+          )}
 
         <Separator />
 
@@ -427,10 +428,12 @@ export function SettingsPanel() {
         <Separator />
 
         {/* ===== 数据备份 ===== */}
-        <section>
-          <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide mb-3">💾 数据备份</h3>
-          <BackupSection />
-        </section>
+        {isAdmin && (
+          <section>
+            <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide mb-3">💾 数据备份</h3>
+            <BackupSection />
+          </section>
+        )}
 
         {/* ===== 管理员登录 ===== */}
         <section>
@@ -474,6 +477,7 @@ function BackupSection() {
     const keys = [
       "blog_custom_posts",
       "gallery_photos",
+      "gallery_deleted_defaults",
       "travel_all_markers",
       "travel_markers_version",
       "music_tracks",
@@ -484,6 +488,9 @@ function BackupSection() {
       "bg_active_src",
       "guestbook_messages",
       "blog_custom_tags",
+      "card_theme",
+      "theme",
+      "scroll_animations_enabled",
     ];
     const backup: Record<string, any> = {};
     for (const k of keys) {

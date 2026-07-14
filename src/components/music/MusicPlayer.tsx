@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Pause, Play, SkipForward, SkipBack, X, Repeat, ListMusic, Trash2, Settings, ChevronUp, ChevronDown } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
+import { uploadAudio } from "@/lib/cloudinary";
 
 interface Track {
   title: string;
@@ -13,8 +14,8 @@ interface Track {
 }
 
 const SEED_TRACKS: Track[] = [
-  { title: "城南花已开", artist: "三亩地", src: "/music/三亩地 - 城南花已开.mp3" },
-  { title: "青空", artist: "Candy_Wind", src: "/music/Candy_Wind - 青空.mp3" },
+  { title: "城南花已开", artist: "三亩地", src: "https://res.cloudinary.com/ii40ztmn/video/upload/v1783997713/uamlrxgcp1iwewarlfou.mp3" },
+  { title: "青空", artist: "Candy_Wind", src: "https://res.cloudinary.com/ii40ztmn/video/upload/v1783997735/x3uz1zd2aotor267u0y7.mp3" },
 ];
 
 const STORAGE_KEY = "music_tracks";
@@ -125,19 +126,22 @@ export function MusicPlayer() {
   }
 
   function importFile(file: File) {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const newTrack: Track = {
-        title: file.name.replace(/\.[^.]+$/, ""),
-        artist: "未知艺术家",
-        src: reader.result as string,
-      };
-      const updated = [...tracks, newTrack];
-      setTracks(updated);
-      saveTracks(updated);
+    (async () => {
+      try {
+        const url = await uploadAudio(file);
+        const newTrack: Track = {
+          title: file.name.replace(/\.[^.]+$/, ""),
+          artist: "未知艺术家",
+          src: url,
+        };
+        const updated = [...tracks, newTrack];
+        setTracks(updated);
+        saveTracks(updated);
+      } catch {
+        /* 上传失败，忽略 */
+      }
       if (musicFileRef.current) musicFileRef.current.value = "";
-    };
-    reader.readAsDataURL(file);
+    })();
   }
 
   const togglePlay = () => setIsPlaying(!isPlaying);
