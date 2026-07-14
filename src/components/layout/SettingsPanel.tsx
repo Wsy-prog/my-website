@@ -463,6 +463,13 @@ export function SettingsPanel() {
                     className="w-full py-2 rounded-lg border-2 border-dashed border-border hover:border-primary transition-colors text-xs text-muted-foreground hover:text-primary text-center flex items-center justify-center gap-1">
                     <ImageIcon className="h-3.5 w-3.5" /> 导入本地图片
                   </button>
+                  {/* 从已有图片导入 */}
+                  <ImportExistingImage assets={assets} onImport={(url) => {
+                    const name = url.split("/").pop()?.replace(/\.[^.]+$/, "") || "已导入壁纸";
+                    const asset: BgAsset = { id: Date.now().toString(36), name, type: "image", src: url };
+                    const updated = [...assets, asset];
+                    setAssets(updated); saveAssets(updated);
+                  }} />
                   <button onClick={() => videoFileRef.current?.click()}
                     className="w-full py-2 rounded-lg border-2 border-dashed border-border hover:border-primary transition-colors text-xs text-muted-foreground hover:text-primary text-center flex items-center justify-center gap-1">
                     <Video className="h-3.5 w-3.5" /> 导入本地视频
@@ -563,6 +570,79 @@ function MusicControl() {
     >
       <Music className="h-4 w-4" />
     </motion.div>
+  );
+}
+
+function ImportExistingImage({ assets, onImport }: { assets: BgAsset[]; onImport: (url: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [galleryPhotos, setGalleryPhotos] = useState<{ src: string; title?: string }[]>([]);
+
+  // 收集所有可用的图片 URL：Cloudinary 已管理壁纸 + 图库照片 + 默认壁纸
+  useEffect(() => {
+    if (!open) return;
+    setLoading(true);
+    // 先从 localStorage 获取图库照片
+    const urls = new Set<string>();
+    try {
+      const photos = JSON.parse(localStorage.getItem("gallery_photos") || "[]");
+      for (const p of photos) {
+        if (p.src && typeof p.src === "string") urls.add(p.src);
+      }
+    } catch {}
+    // 已管理壁纸中的 Cloudinary URL
+    for (const a of assets) {
+      if (a.type === "image" && a.src && (a.src.includes("cloudinary") || a.src.includes("res.cloudinary"))) {
+        urls.add(a.src);
+      }
+    }
+    // 默认壁纸
+    if (!urls.has("/images/bg.jpg")) urls.add("/images/bg.jpg");
+
+    const photos = Array.from(urls).map(src => {
+      const name = src.split("/").pop()?.replace(/\.[^.]+$/, "") || "";
+      return { src, title: decodeURIComponent(name) };
+    });
+    setGalleryPhotos(photos);
+    setLoading(false);
+  }, [open, assets]);
+
+  return (
+    <>
+      <button
+        onClick={() => setOpen(true)}
+        className="w-full py-2 rounded-lg border-2 border-dashed border-border hover:border-primary transition-colors text-xs text-muted-foreground hover:text-primary text-center flex items-center justify-center gap-1"
+      >
+        <ImageIcon className="h-3.5 w-3.5" /> 从已有图片选择
+      </button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>选择已有图片</DialogTitle>
+          </DialogHeader>
+          <div className="max-h-64 overflow-y-auto">
+            {loading ? (
+              <p className="text-xs text-muted-foreground text-center py-8">加载中...</p>
+            ) : galleryPhotos.length === 0 ? (
+              <p className="text-xs text-muted-foreground text-center py-8">暂无可用图片，请先上传壁纸或照片</p>
+            ) : (
+              <div className="grid grid-cols-3 gap-2">
+                {galleryPhotos.map((photo) => (
+                  <button
+                    key={photo.src}
+                    onClick={() => { onImport(photo.src); setOpen(false); }}
+                    className="rounded-lg border border-border overflow-hidden hover:border-primary transition-colors group"
+                  >
+                    <img src={photo.src} className="aspect-video object-cover w-full" />
+                    <p className="text-[10px] px-1.5 py-1 truncate text-muted-foreground group-hover:text-foreground">{photo.title || "图片"}</p>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
