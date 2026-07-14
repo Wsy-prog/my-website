@@ -103,13 +103,9 @@ function BlogPageInner() {
   // 每次导航回 /blog 或初次加载时刷新文章列表
   useEffect(() => {
     setAllPosts(getAllPosts(blogPosts));
-    // 尝试从服务端同步数据
-    import("@/lib/blog-store").then(mod => mod.loadCustomPostsServer()).then(serverPosts => {
-      // 只要成功拿到数据（即使为空数组），就以服务端为准覆盖本地
-      if (serverPosts !== null) {
-        localStorage.setItem("blog_custom_posts", JSON.stringify(serverPosts));
-      }
-      setAllPosts(getAllPosts(blogPosts));
+    // 从 API 拉取最新数据
+    import("@/lib/blog-store").then(mod => mod.loadCustomPostsServer()).then(posts => {
+      setAllPosts(posts);
     });
   }, [pathname]);
 

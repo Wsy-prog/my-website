@@ -9,68 +9,64 @@ export interface Photo {
   tags?: string[];
 }
 
-export const defaultPhotos: Photo[] = [];
-
 const PHOTOS_KEY = "gallery_photos";
 
-function getToken(): string | null {
-  if (typeof window === "undefined") return null;
+// ========== 服务端（权威数据源） ==========
+
+/** 从服务端加载照片（异步） */
+export async function loadFromApi(): Promise<Photo[]> {
   try {
-    return localStorage.getItem("admin_token");
-  } catch {
-    return null;
-  }
+    const res = await fetch("/api/data/gallery_photos");
+    const json = await res.json();
+    if (json.exists && Array.isArray(json.data)) {
+      return json.data as Photo[];
+    }
+  } catch { /* 网络错误 */ }
+  return [];
 }
 
-
-async function syncToApi(photos: Photo[]) {
-  const token = getToken();
+/** 同步到服务端 */
+async function saveToApi(photos: Photo[]) {
   try {
     await fetch("/api/data/gallery_photos", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ data: photos }),
     });
   } catch { /* 静默 */ }
 }
 
-/** 从服务端加载照片（异步），用于初始化 */
-export async function loadPhotosFromServer(): Promise<Photo[] | null> {
-  try {
-    const res = await fetch("/api/data/gallery_photos");
-    const json = await res.json();
-    if (json.exists && Array.isArray(json.data)) {
-      return json.data;
-    }
-    if (json.exists && json.data === null) {
-      return null;
-    }
-    if (json.exists) {
-      return [];
-    }
-  } catch { /* 网络错误 */ }
-  return null;
-}
+// ========== 本地缓存 ==========
 
-export function loadPhotos(): Photo[] {
+function loadCache(): Photo[] {
   if (typeof window === "undefined") return [];
   try {
     const raw = localStorage.getItem(PHOTOS_KEY);
-    if (!raw) return [];
-    const saved = JSON.parse(raw) as Photo[];
-    return saved;
-  } catch {
-    return [];
-  }
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
 }
 
-export function savePhotos(photos: Photo[]) {
+function saveCache(photos: Photo[]) {
   if (typeof window === "undefined") return;
-  try {
-    localStorage.setItem(PHOTOS_KEY, JSON.stringify(photos));
-    syncToApi(photos);
-  } catch { /* quota exceeded */ }
+  try { localStorage.setItem(PHOTOS_KEY, JSON.stringify(photos)); } catch {}
+}
+
+// ========== 公开方法 ==========
+
+/** 同步加载本地缓存的照片（立即显示用） */
+export function loadPhotos(): Photo[] {
+  return loadCache();
+}
+
+/** 从 API 拉取照片并缓存 */
+export async function loadPhotosFromServer(): Promise<Photo[]> {
+  const photos = await loadFromApi();
+  saveCache(photos);
+  return photos;
+}
+
+/** 保存照片（写入 API + 缓存） */
+export function savePhotos(photos: Photo[]) {
+  saveCache(photos);
+  saveToApi(photos);
 }

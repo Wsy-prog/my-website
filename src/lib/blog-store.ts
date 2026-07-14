@@ -14,103 +14,85 @@ function sanitizePost(p: Partial<BlogPost>): BlogPost {
     content: p.content || "",
     coverImage: p.coverImage || undefined,
     coverPosition: p.coverPosition ?? undefined,
-    commentsEnabled: p.commentsEnabled !== false, // 默认开启
+    commentsEnabled: p.commentsEnabled !== false,
   };
 }
 
-function getToken(): string | null {
-  if (typeof window === "undefined") return null;
-  try {
-    return localStorage.getItem("admin_token");
-  } catch {
-    return null;
-  }
-}
-
-// ========== 从服务端加载 ==========
-
-export async function loadCustomPostsServer(): Promise<BlogPost[] | null> {
+/** 从服务端加载博客文章（异步，权威数据源） */
+export async function loadFromApi(): Promise<BlogPost[]> {
   try {
     const res = await fetch("/api/data/blog_custom_posts");
     const json = await res.json();
     if (json.exists && Array.isArray(json.data)) {
       return json.data.map(sanitizePost);
     }
-    // exists 且 data 为 null → 还没同步过，返回 null 保留本地
-    if (json.exists && json.data === null) {
-      return null;
-    }
-    // exists 但 data 不是数组
-    if (json.exists) {
-      return [];
-    }
-  } catch { /* 网络错误，使用本地数据 */ }
-  return null;
+  } catch { /* 网络错误 */ }
+  return [];
 }
 
-/** 客户端使用的同步加载（从 localStorage 缓存读取） */
-export function loadCustomPosts(): BlogPost[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = localStorage.getItem(CUSTOM_POSTS_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed.map(sanitizePost) : [];
-  } catch {
-    return [];
-  }
-}
-
-// ========== 保存 / 删除 ==========
-
-async function syncToApi(posts: BlogPost[]) {
+/** 同步到服务端 */
+async function saveToApi(posts: BlogPost[]) {
   try {
     await fetch("/api/data/blog_custom_posts", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ data: posts }),
     });
-  } catch { /* 后台静默 */ }
+  } catch { /* 静默 */ }
+}
+
+// ========== 本地缓存（加速二次加载） ==========
+
+function loadCache(): BlogPost[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(CUSTOM_POSTS_KEY);
+    return raw ? JSON.parse(raw).map(sanitizePost) : [];
+  } catch { return []; }
+}
+
+function saveCache(posts: BlogPost[]) {
+  if (typeof window === "undefined") return;
+  try { localStorage.setItem(CUSTOM_POSTS_KEY, JSON.stringify(posts)); } catch {}
+}
+
+// ========== 公开方法 ==========
+
+/** 获取所有文章：先读缓存（即时显示），再从 API 拉取最新数据 */
+export function loadCustomPosts(): BlogPost[] {
+  return loadCache();
+}
+
+export async function loadCustomPostsServer(): Promise<BlogPost[]> {
+  const posts = await loadFromApi();
+  saveCache(posts);
+  return posts;
 }
 
 export function saveCustomPost(post: BlogPost) {
-  const posts = loadCustomPosts();
+  const posts = loadCache();
   const idx = posts.findIndex((p) => p.slug === post.slug);
   if (idx >= 0) {
     posts[idx] = post;
   } else {
     posts.unshift(post);
   }
-  try {
-    localStorage.setItem(CUSTOM_POSTS_KEY, JSON.stringify(posts));
-    syncToApi(posts);
-  } catch (e) {
-    console.error("[blog-store] save failed:", e);
-  }
+  saveCache(posts);
+  saveToApi(posts);
 }
 
 export function deleteCustomPost(slug: string) {
-  const posts = loadCustomPosts().filter((p) => p.slug !== slug);
-  try {
-    localStorage.setItem(CUSTOM_POSTS_KEY, JSON.stringify(posts));
-    syncToApi(posts);
-  } catch (e) {
-    console.error("[blog-store] delete failed:", e);
-  }
+  const posts = loadCache().filter((p) => p.slug !== slug);
+  saveCache(posts);
+  saveToApi(posts);
 }
 
-// ========== 合并列表 ==========
-
 export function getAllPosts(staticPosts: BlogPost[]): BlogPost[] {
-  const custom = loadCustomPosts();
-  console.log("[blog-store] getAllPosts: custom=", custom.length, "static=", staticPosts.length);
+  const custom = loadCache();
   return [...custom, ...staticPosts];
 }
 
 export function getPostBySlug(slug: string): BlogPost | null {
-  if (typeof window === "undefined") return null;
-  const posts = loadCustomPosts();
-  const found = posts.find((p) => p.slug === slug);
-  console.log("[blog-store] getPostBySlug:", slug, "found:", !!found);
-  return found || null;
+  const posts = loadCache();
+  return posts.find((p) => p.slug === slug) || null;
 }

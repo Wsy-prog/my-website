@@ -20,6 +20,29 @@ const SEED_TRACKS: Track[] = [
 
 const STORAGE_KEY = "music_tracks";
 
+// ========== API 同步 ==========
+async function syncToApi(tracks: Track[]) {
+  try {
+    await fetch("/api/data/music_tracks", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ data: tracks }),
+    });
+  } catch { /* 静默 */ }
+}
+
+async function loadFromApi(): Promise<Track[]> {
+  try {
+    const res = await fetch("/api/data/music_tracks");
+    const json = await res.json();
+    if (json.exists && Array.isArray(json.data)) {
+      return json.data as Track[];
+    }
+  } catch { /* 网络错误 */ }
+  return [];
+}
+
+// ========== 本地缓存 ==========
 function loadTracks(): Track[] {
   if (typeof window === "undefined") return SEED_TRACKS;
   try {
@@ -30,7 +53,10 @@ function loadTracks(): Track[] {
 }
 
 function saveTracks(ts: Track[]) {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(ts)); } catch { /* quota */ }
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(ts));
+    syncToApi(ts);
+  } catch { /* quota */ }
 }
 
 export function MusicPlayer() {
@@ -53,6 +79,13 @@ export function MusicPlayer() {
 
   useEffect(() => {
     setTracks(loadTracks());
+    // 从 API 拉取最新歌单，覆盖本地
+    loadFromApi().then(apiTracks => {
+      if (apiTracks.length > 0) {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(apiTracks));
+        setTracks(apiTracks);
+      }
+    });
   }, []);
 
   useEffect(() => {

@@ -59,14 +59,9 @@ function GalleryPageInner() {
   useEffect(() => {
     setPhotos(loadPhotos());
     setLoaded(true);
-    // 以服务端数据为准覆盖
-    import("@/data/photos").then(mod => mod.loadPhotosFromServer()).then(serverPhotos => {
-      if (serverPhotos !== null) {
-        if (serverPhotos.length > 0) {
-          localStorage.setItem("gallery_photos", JSON.stringify(serverPhotos));
-          setPhotos(loadPhotos());
-        }
-      }
+    // 从 API 拉取最新数据
+    import("@/data/photos").then(mod => mod.loadPhotosFromServer()).then(photos => {
+      setPhotos(photos);
     });
   }, []);
 
