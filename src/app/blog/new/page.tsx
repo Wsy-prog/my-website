@@ -5,12 +5,13 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import {
   Bold, Italic, Underline, Heading1, Heading2, List, ListOrdered,
-  ImageIcon, Smile, ArrowLeft, Send, Quote, Trash2, Undo2, Redo2, Images,
+  ImageIcon, Smile, ArrowLeft, Send, Quote, Trash2, Undo2, Redo2, ImageUp,
+  Images, ImageOff,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { saveCustomPost, loadCustomPosts, deleteCustomPost } from "@/lib/blog-store";
 import { useAuth } from "@/lib/auth-context";
 import type { BlogPost } from "@/data/blog-posts";
