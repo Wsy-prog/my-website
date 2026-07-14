@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Moon, Sun, Menu, Music } from "lucide-react";
+import { Menu, Music } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
@@ -20,7 +20,6 @@ const navItems = [
 
 export function Navbar() {
   const pathname = usePathname();
-  const [isDark, setIsDark] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMusicPlaying, setIsMusicPlaying] = useState(false);
 
@@ -30,12 +29,6 @@ export function Navbar() {
   }
 
   useEffect(() => {
-    const stored = localStorage.getItem("theme");
-    if (stored === "dark" || (!stored && window.matchMedia("(prefers-color-scheme: dark)").matches)) {
-      document.documentElement.classList.add("dark");
-      setIsDark(true);
-    }
-
     const onScroll = () => setIsScrolled(window.scrollY > 20);
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
@@ -49,13 +42,6 @@ export function Navbar() {
     document.addEventListener("music-state-change", handler);
     return () => document.removeEventListener("music-state-change", handler);
   }, []);
-
-  const toggleTheme = () => {
-    const next = !isDark;
-    setIsDark(next);
-    document.documentElement.classList.toggle("dark", next);
-    localStorage.setItem("theme", next ? "dark" : "light");
-  };
 
   return (
     <nav
@@ -98,10 +84,6 @@ export function Navbar() {
 
           {/* Actions */}
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="icon" onClick={toggleTheme} className="rounded-full">
-              {isDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
-            </Button>
-
             <Button
               variant="ghost"
               size="icon"

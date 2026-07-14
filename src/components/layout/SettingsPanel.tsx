@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Settings, Eye, EyeOff, Pencil, Trash2, Check, X, ImageIcon, Video, ChevronDown, ChevronRight } from "lucide-react";
+import { Settings, Pencil, Trash2, Check, X, ImageIcon, Video, ChevronDown, ChevronRight, Music } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -211,34 +211,40 @@ export function SettingsPanel() {
 
   return (
     <>
-      {/* 只显示背景 按钮 */}
-      <button
-        onClick={toggleBgOnly}
-        className="bg-only-toggle fixed top-4 right-16 z-[60] rounded-full p-2 transition-all duration-300 group"
-        title={bgOnly ? "退出背景模式" : "只显示背景"}
-      >
-        <div className="relative">
-          {bgOnly ? (
-            <EyeOff className="h-4 w-4 relative z-10 text-white drop-shadow-[0_0_6px_rgba(168,85,247,0.8)]" />
-          ) : (
-            <Eye className="h-4 w-4 relative z-10 text-muted-foreground group-hover:text-foreground transition-colors" />
-          )}
-          {bgOnly && (
-            <span className="absolute inset-0 rounded-full animate-ping bg-gradient-to-r from-purple-500 via-pink-400 to-cyan-400 opacity-40" />
-          )}
-        </div>
-        {bgOnly && (
-          <span className="absolute inset-0 rounded-full bg-gradient-to-br from-purple-500 via-pink-400 to-cyan-400 opacity-70 blur-sm -z-10" />
-        )}
-      </button>
-
       <Sheet open={open} onOpenChange={setOpen}>
-        <SheetTrigger className="fixed top-4 right-24 z-50 rounded-full p-2 bg-background/30 backdrop-blur-sm hover:bg-background/50 transition-colors" title="页面设置">
+        <SheetTrigger className="fixed top-4 right-16 z-50 rounded-full p-2 bg-background/30 backdrop-blur-sm hover:bg-background/50 transition-colors" title="页面设置">
           <Settings className="h-4 w-4" />
         </SheetTrigger>
       <SheetContent side="right" className="w-80 sm:w-96 pt-14 flex flex-col gap-5 overflow-y-auto max-h-screen">
 
-        {/* 一键应用博主同款 — 最顶部 */}
+        {/* 背景专注模式 — 最顶部 */}
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-semibold text-muted-foreground uppercase tracking-wide flex-1">👁️ 背景专注</span>
+          <button
+            onClick={toggleBgOnly}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+              bgOnly
+                ? "bg-gradient-to-r from-purple-500 via-pink-400 to-cyan-400 text-white border-transparent shadow-lg shadow-purple-500/25"
+                : "border-border hover:bg-accent"
+            }`}
+          >
+            {bgOnly ? "已开启" : "开启"}
+          </button>
+        </div>
+
+        {/* 音乐播放 — 最顶部 */}
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-semibold text-muted-foreground uppercase tracking-wide flex-1">🎵 背景音乐</span>
+          <button
+            onClick={() => document.dispatchEvent(new CustomEvent("toggle-music"))}
+            className="p-2 rounded-lg border border-border hover:bg-accent transition-colors"
+            title="打开/关闭音乐"
+          >
+            <MusicControl />
+          </button>
+        </div>
+
+        {/* 一键应用博主同款 */}
         <button
           className="w-full rounded-xl bg-gradient-to-r from-purple-600 via-pink-500 to-cyan-400 px-4 py-2.5 text-xs font-medium text-white shadow-lg shadow-purple-500/25 hover:shadow-purple-500/40 hover:scale-[1.02] active:scale-[0.98] transition-all duration-300"
           onClick={() => {
@@ -451,6 +457,14 @@ export function SettingsPanel() {
 
         <Separator />
 
+        {/* ===== 主题模式 ===== */}
+        <section>
+          <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide mb-3">🌓 主题模式</h3>
+          <ThemeModeToggle />
+        </section>
+
+        <Separator />
+
         {/* ===== 默认外观（管理员） ===== */}
         {isAdmin && (
           <section>
@@ -489,6 +503,26 @@ function AnimateToggle() {
   );
 }
 
+function MusicControl() {
+  const [isPlaying, setIsPlaying] = useState(false);
+  useEffect(() => {
+    const handler = (e: Event) => {
+      setIsPlaying((e as CustomEvent).detail.isPlaying);
+    };
+    document.addEventListener("music-state-change", handler);
+    return () => document.removeEventListener("music-state-change", handler);
+  }, []);
+  return (
+    <motion.div
+      animate={{ rotate: isPlaying ? [0, 360] : 0 }}
+      transition={isPlaying ? { duration: 3, ease: "linear", repeat: Infinity } : { duration: 0.5, ease: "easeInOut" }}
+      style={{ display: "inline-flex" }}
+    >
+      <Music className="h-4 w-4" />
+    </motion.div>
+  );
+}
+
 function CardThemeToggle() {
   const { cardTheme, setCardTheme } = useCardTheme();
   const items: ["glass" | "clean", string][] = [["glass", "🪟 毛玻璃"], ["clean", "📄 简洁白底"]];
@@ -496,6 +530,45 @@ function CardThemeToggle() {
     <div className="grid grid-cols-2 gap-2">
       {items.map(([val, label]) => (
         <button key={val} onClick={() => setCardTheme(val)} className={`px-2 py-1.5 rounded-md text-xs border transition-colors ${cardTheme === val ? "bg-primary text-primary-foreground border-primary" : "border-border hover:bg-accent"}`}>
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function ThemeModeToggle() {
+  const [theme, setThemeState] = useState<string>(() => {
+    if (typeof window !== "undefined") return localStorage.getItem("theme") || "auto";
+    return "auto";
+  });
+
+  useEffect(() => {
+    const stored = localStorage.getItem("theme") || "auto";
+    setThemeState(stored);
+  }, []);
+
+  const setTheme = (t: string) => {
+    setThemeState(t);
+    if (t === "dark") {
+      document.documentElement.classList.add("dark");
+      localStorage.setItem("theme", "dark");
+    } else if (t === "light") {
+      document.documentElement.classList.remove("dark");
+      localStorage.setItem("theme", "light");
+    } else {
+      // auto: 跟随系统
+      const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+      document.documentElement.classList.toggle("dark", prefersDark);
+      localStorage.removeItem("theme");
+    }
+  };
+
+  const items: [string, string][] = [["auto", "💻 跟随系统"], ["light", "☀️ 亮色"], ["dark", "🌙 暗色"]];
+  return (
+    <div className="grid grid-cols-3 gap-2">
+      {items.map(([val, label]) => (
+        <button key={val} onClick={() => setTheme(val)} className={`px-2 py-1.5 rounded-md text-xs border transition-colors ${theme === val ? "bg-primary text-primary-foreground border-primary" : "border-border hover:bg-accent"}`}>
           {label}
         </button>
       ))}
