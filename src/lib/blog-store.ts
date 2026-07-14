@@ -65,7 +65,9 @@ export function loadCustomPosts(): BlogPost[] {
 
 export async function loadCustomPostsServer(): Promise<BlogPost[]> {
   const posts = await loadFromApi();
-  saveCache(posts);
+  if (posts.length > 0) {
+    saveCache(posts);
+  }
   return posts;
 }
 

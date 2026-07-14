@@ -58,10 +58,12 @@ export function loadPhotos(): Photo[] {
   return loadCache();
 }
 
-/** 从 API 拉取照片并缓存 */
+/** 从 API 拉取照片并缓存（仅在 API 返回非空数据时才覆盖缓存） */
 export async function loadPhotosFromServer(): Promise<Photo[]> {
   const photos = await loadFromApi();
-  saveCache(photos);
+  if (photos.length > 0) {
+    saveCache(photos);
+  }
   return photos;
 }
 

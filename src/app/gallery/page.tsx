@@ -58,10 +58,10 @@ function GalleryPageInner() {
   // 加载照片
   useEffect(() => {
     setPhotos(loadPhotos());
-    setLoaded(true);
-    // 从 API 拉取最新数据
+    // 从 API 拉取最新数据（完成后才允许自动保存，避免覆盖）
     import("@/data/photos").then(mod => mod.loadPhotosFromServer()).then(photos => {
       setPhotos(photos);
+      setLoaded(true);
     });
   }, []);
 
