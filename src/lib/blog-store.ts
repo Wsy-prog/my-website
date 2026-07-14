@@ -1,7 +1,6 @@
 import type { BlogPost } from "@/data/blog-posts";
 
 const CUSTOM_POSTS_KEY = "blog_custom_posts";
-const TOKEN_KEY = "admin_token";
 
 function sanitizePost(p: Partial<BlogPost>): BlogPost {
   return {
@@ -22,7 +21,7 @@ function sanitizePost(p: Partial<BlogPost>): BlogPost {
 function getToken(): string | null {
   if (typeof window === "undefined") return null;
   try {
-    return localStorage.getItem(TOKEN_KEY);
+    return localStorage.getItem("admin_token");
   } catch {
     return null;
   }
@@ -65,14 +64,10 @@ export function loadCustomPosts(): BlogPost[] {
 // ========== 保存 / 删除 ==========
 
 async function syncToApi(posts: BlogPost[]) {
-  const token = getToken();
   try {
     await fetch("/api/data/blog_custom_posts", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ data: posts }),
     });
   } catch { /* 后台静默 */ }
