@@ -52,7 +52,7 @@ function saveAssets(assets: BgAsset[]) {
 function getStored(): BgSettings {
   if (typeof window === "undefined") return { type: "aurora", blur: 0, opacity: 0.3 };
   return {
-    type: (localStorage.getItem("bg_type") as BgType) || "aurora",
+    type: (localStorage.getItem("bg_type") as BgType) || "none",
     blur: parseFloat(localStorage.getItem("bg_blur") || "0"),
     opacity: parseFloat(localStorage.getItem("bg_opacity") || "0.3"),
     activeAssetSrc: localStorage.getItem("bg_active_src") || undefined,
@@ -68,6 +68,9 @@ function saveSettings(s: BgSettings) {
 }
 
 function applySettings(s: BgSettings) {
+  // type === 'none' 表示不操作，保留服务端渲染的背景
+  if (s.type === "none") return;
+
   const imgEl = document.querySelector(".bg-layer-image") as HTMLElement | null;
   const videoEl = document.querySelector(".bg-layer-video") as HTMLElement | null;
   const overlayEl = document.querySelector(".bg-layer-overlay.light-overlay") as HTMLElement | null;
