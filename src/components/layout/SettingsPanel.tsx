@@ -260,33 +260,6 @@ export function SettingsPanel() {
         </SheetTrigger>
       <SheetContent side="right" className="w-80 sm:w-96 pt-14 flex flex-col gap-5 overflow-y-auto max-h-screen">
 
-        {/* 背景专注模式 — 最顶部 */}
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-semibold text-muted-foreground uppercase tracking-wide flex-1">👁️ 背景专注</span>
-          <button
-            onClick={toggleBgOnly}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
-              bgOnly
-                ? "bg-gradient-to-r from-purple-500 via-pink-400 to-cyan-400 text-white border-transparent shadow-lg shadow-purple-500/25"
-                : "border-border hover:bg-accent"
-            }`}
-          >
-            {bgOnly ? "已开启" : "开启"}
-          </button>
-        </div>
-
-        {/* 音乐播放 — 最顶部 */}
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-semibold text-muted-foreground uppercase tracking-wide flex-1">🎵 背景音乐</span>
-          <button
-            onClick={() => document.dispatchEvent(new CustomEvent("toggle-music"))}
-            className="p-2 rounded-lg border border-border hover:bg-accent transition-colors"
-            title="打开/关闭音乐"
-          >
-            <MusicControl />
-          </button>
-        </div>
-
         {/* 一键应用博主同款 */}
         <button
           className="w-full rounded-xl bg-gradient-to-r from-purple-600 via-pink-500 to-cyan-400 px-4 py-2.5 text-xs font-medium text-white shadow-lg shadow-purple-500/25 hover:shadow-purple-500/40 hover:scale-[1.02] active:scale-[0.98] transition-all duration-300"
@@ -504,6 +477,23 @@ export function SettingsPanel() {
         <section>
           <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide mb-3">🌓 主题模式</h3>
           <ThemeModeToggle />
+        </section>
+
+        <Separator />
+
+        {/* ===== 背景专注模式 ===== */}
+        <section>
+          <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide mb-3">👁️ 背景专注</h3>
+          <button
+            onClick={toggleBgOnly}
+            className={`w-full px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+              bgOnly
+                ? "bg-gradient-to-r from-purple-500 via-pink-400 to-cyan-400 text-white border-transparent shadow-lg shadow-purple-500/25"
+                : "border-border hover:bg-accent"
+            }`}
+          >
+            {bgOnly ? "✅ 已开启 — 点击关闭" : "开启（隐藏页面内容，只留背景）"}
+          </button>
         </section>
 
         <Separator />
