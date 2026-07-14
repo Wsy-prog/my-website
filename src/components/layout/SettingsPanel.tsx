@@ -214,7 +214,7 @@ export function SettingsPanel() {
       {/* 只显示背景 按钮 */}
       <button
         onClick={toggleBgOnly}
-        className="bg-only-toggle fixed top-4 right-24 z-[60] rounded-full p-2 transition-all duration-300 group"
+        className="bg-only-toggle fixed top-4 right-16 z-[60] rounded-full p-2 transition-all duration-300 group"
         title={bgOnly ? "退出背景模式" : "只显示背景"}
       >
         <div className="relative">
@@ -233,7 +233,7 @@ export function SettingsPanel() {
       </button>
 
       <Sheet open={open} onOpenChange={setOpen}>
-        <SheetTrigger className="fixed top-4 right-16 z-50 rounded-full p-2 bg-background/30 backdrop-blur-sm hover:bg-background/50 transition-colors" title="页面设置">
+        <SheetTrigger className="fixed top-4 right-24 z-50 rounded-full p-2 bg-background/30 backdrop-blur-sm hover:bg-background/50 transition-colors" title="页面设置">
           <Settings className="h-4 w-4" />
         </SheetTrigger>
       <SheetContent side="right" className="w-80 sm:w-96 pt-14 flex flex-col gap-5 overflow-y-auto max-h-screen">
