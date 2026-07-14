@@ -65,6 +65,8 @@ function saveSettings(s: BgSettings) {
   localStorage.setItem("bg_opacity", String(s.opacity));
   if (s.activeAssetSrc) localStorage.setItem("bg_active_src", s.activeAssetSrc);
   else localStorage.removeItem("bg_active_src");
+  // 用户手动改过背景 → 标记自定义，applySiteDefaults 不再覆盖
+  localStorage.setItem("bg_customized", "true");
 }
 
 function applySettings(s: BgSettings) {

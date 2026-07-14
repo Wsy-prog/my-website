@@ -37,18 +37,18 @@ export async function syncSiteDefaults(): Promise<boolean> {
   }
 }
 
-// 访客首次加载时读取管理员设定的默认值
+// 访客加载时读取管理员设定的默认值（如果没自定义过）
 export function applySiteDefaults() {
   if (typeof window === "undefined") return;
-  const hasLocal = localStorage.getItem("bg_type") || localStorage.getItem("theme") || localStorage.getItem("card_theme");
-  if (hasLocal) return;
+  // 用户手动改过背景 → 不覆盖
+  if (localStorage.getItem("bg_customized") === "true") return;
 
   fetch("/api/data/site_defaults")
     .then(r => r.json())
     .then(json => {
       if (json.exists && json.data) {
         for (const [k, v] of Object.entries(json.data)) {
-          if (!localStorage.getItem(k)) localStorage.setItem(k, String(v));
+          localStorage.setItem(k, String(v));
         }
         // 背景
         if (json.data.bg_active_src) {
