@@ -590,6 +590,21 @@ function ImportExistingImage({ assets, onImport }: { assets: BgAsset[]; onImport
         if (p.src && typeof p.src === "string") urls.add(p.src);
       }
     } catch {}
+    // 博客文章中的封面图片
+    try {
+      const posts = JSON.parse(localStorage.getItem("blog_custom_posts") || "[]");
+      for (const p of posts) {
+        if (p.coverImage && typeof p.coverImage === "string") urls.add(p.coverImage);
+        // 博客正文中插入的图片
+        if (p.content && typeof p.content === "string") {
+          const imgRegex = /<img[^>]+src="([^"]+)"/g;
+          let match;
+          while ((match = imgRegex.exec(p.content)) !== null) {
+            if (match[1]) urls.add(match[1]);
+          }
+        }
+      }
+    } catch {}
     // 已管理壁纸中的 Cloudinary URL
     for (const a of assets) {
       if (a.type === "image" && a.src && (a.src.includes("cloudinary") || a.src.includes("res.cloudinary"))) {
