@@ -30,27 +30,21 @@ interface Message {
   showReplyForm: boolean;
 }
 
-const initialMessages: Message[] = [
-  { id: 1, name: "旅行者小王", content: "看了你的网站，太棒了！照片拍得真好，博客期待更新～", date: "2025-06-20", likes: 3, replies: [], showReplyForm: false },
-  { id: 2, name: "摄影爱好者", content: "同在中科大！学弟加油💪", date: "2025-05-22", likes: 5, replies: [], showReplyForm: false },
-  { id: 3, name: "老同学", content: "好久不见！看到你的网站真高兴。保持联系！", date: "2025-04-15", likes: 2, replies: [], showReplyForm: false },
-];
-
 const GUESTBOOK_KEY = "guestbook_messages";
 
 // 加载留言（去掉 UI 状态字段）
 function loadMessages(): Message[] {
-  if (typeof window === "undefined") return initialMessages;
+  if (typeof window === "undefined") return [];
   try {
     const raw = localStorage.getItem(GUESTBOOK_KEY);
-    if (!raw) return initialMessages;
+    if (!raw) return [];
     const saved = JSON.parse(raw) as Message[];
     // 给每条加回 UI 状态
     const hydrate = (msgs: (Message | ReplyMsg)[]): (Message | ReplyMsg)[] =>
       msgs.map((m) => ({ ...m, showReplyForm: false, replies: hydrate(m.replies) as ReplyMsg[] }));
     return hydrate(saved) as Message[];
   } catch {
-    return initialMessages;
+    return [];
   }
 }
 
