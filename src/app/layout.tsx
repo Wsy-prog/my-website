@@ -7,6 +7,7 @@ import { ClientProviders } from "@/components/layout/ClientProviders";
 import { MusicPlayer } from "@/components/music/MusicPlayer";
 import { BackToTop } from "@/components/shared/BackToTop";
 import { siteConfig } from "@/lib/config";
+import { loadData } from "@/lib/db";
 import "./globals.css";
 
 export const dynamic = "force-dynamic";
@@ -32,16 +33,9 @@ export const metadata: Metadata = {
 
 async function getSiteDefaults() {
   try {
-    // 使用本地完整 URL 或 Vercel 部署 URL 访问 API
-    const base = process.env.VERCEL_URL
-      ? `https://${process.env.VERCEL_URL}`
-      : "http://localhost:3000";
-    const res = await fetch(`${base}/api/data/site_defaults`, {
-      cache: "no-store",
-    });
-    const json = await res.json();
-    if (json.exists && json.data) return json.data as Record<string, string>;
-  } catch { /* 使用 config.json 回退 */ }
+    const result = await loadData<Record<string, string>>("site_defaults");
+    if (result.exists && result.data) return result.data;
+  } catch { /* 数据库不可用时回退到 config.json */ }
   return null;
 }
 
