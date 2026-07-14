@@ -4,9 +4,9 @@ import { useState, useRef, useEffect, useCallback, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import {
-  Bold, Italic, Underline, Heading1, Heading2, List, ListOrdered,
-  ImageIcon, Smile, ArrowLeft, Send, Quote, Trash2, Undo2, Redo2, ImageUp,
-  Images, ImageOff,
+  Bold, Italic, Underline, List, ListOrdered,
+  ImageIcon, Smile, ArrowLeft, Send, Quote, Trash2, Undo2, Redo2,
+  Images,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
