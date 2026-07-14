@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { useAnimation } from "@/lib/animation-context";
 import { useAuth } from "@/lib/auth-context";
 import { getAllMarkers } from "@/lib/travel-store";
-import { loadPhotos, savePhotos, markDefaultDeleted, type Photo } from "@/data/photos";
+import { loadPhotos, savePhotos, type Photo } from "@/data/photos";
 import { compressAndUpload } from "@/lib/cloudinary";
 
 const categories = ["全部", "风光", "人像", "视频", "运动", "生活"];
@@ -63,7 +63,6 @@ function GalleryPageInner() {
     import("@/data/photos").then(mod => mod.loadPhotosFromServer()).then(serverPhotos => {
       if (serverPhotos.length > 0 || true) {
         localStorage.setItem("gallery_photos", JSON.stringify(serverPhotos));
-        localStorage.setItem("gallery_photos_server_loaded", "1");
         setPhotos(loadPhotos());
       }
     });
@@ -177,10 +176,6 @@ function GalleryPageInner() {
   // 删除照片
   const deletePhoto = () => {
     if (!editPhoto) return;
-    // 标记默认照片为已删除（1-19 是内置默认照片 ID）
-    if (editPhoto.id >= 1 && editPhoto.id <= 19) {
-      markDefaultDeleted(editPhoto.id);
-    }
     setPhotos(photos.filter((p) => p.id !== editPhoto.id));
     setEditPhoto(null);
     setConfirmDelete(false);
