@@ -3,12 +3,11 @@ import { travelMarkers, type TravelMarker } from "@/data/travel-markers";
 const MARKERS_KEY = "travel_all_markers";
 const VERSION_KEY = "travel_markers_version";
 const CURRENT_VERSION = 8;
-const TOKEN_KEY = "admin_token";
 
 function getToken(): string | null {
   if (typeof window === "undefined") return null;
   try {
-    return localStorage.getItem(TOKEN_KEY);
+    return localStorage.getItem("admin_token");
   } catch {
     return null;
   }
@@ -22,14 +21,10 @@ function loadStoredMarkers(): TravelMarker[] {
 }
 
 async function syncToApi(markers: TravelMarker[]) {
-  const token = getToken();
   try {
     await fetch("/api/data/travel_all_markers", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ data: markers }),
     });
   } catch { /* 静默 */ }

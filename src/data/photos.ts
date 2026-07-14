@@ -12,12 +12,11 @@ export interface Photo {
 export const defaultPhotos: Photo[] = [];
 
 const PHOTOS_KEY = "gallery_photos";
-const TOKEN_KEY = "admin_token";
 
 function getToken(): string | null {
   if (typeof window === "undefined") return null;
   try {
-    return localStorage.getItem(TOKEN_KEY);
+    return localStorage.getItem("admin_token");
   } catch {
     return null;
   }
