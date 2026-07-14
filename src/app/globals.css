@@ -373,6 +373,19 @@
   animation: music-float 3s ease-in-out infinite;
 }
 
+/* ========== Bg-only mode (只显示背景) ========== */
+.bg-only-mode nav { display: none !important; }
+.bg-only-mode main { display: none !important; }
+.bg-only-mode .back-to-top { display: none !important; }
+.bg-only-mode .music-float[data-parent] { display: none !important; }
+.bg-only-mode [role="dialog"] { display: none !important; }
+.bg-only-mode [data-slot="sheet-content"] { display: none !important; }
+.bg-only-mode [data-slot="sheet-overlay"] { display: none !important; }
+/* 只留 bg-only-toggle 按钮 */
+.bg-only-mode .fixed:not(.bg-only-toggle) { display: none !important; }
+/* bg-only-toggle 始终保持可见 */
+.bg-only-toggle { display: flex !important; }
+
 /* ========== Print (PDF) ========== */
 @media print {
   html, body {

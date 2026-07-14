@@ -77,7 +77,11 @@ export function MusicPlayer() {
       if (playModeRef.current === "sequential") {
         setCurrentTrack((prev) => (prev + 1) % (tracksLenRef.current || 1));
       } else {
-        setIsPlaying(false);
+        // 单曲循环：从头重新播放
+        if (audioRef.current) {
+          audioRef.current.currentTime = 0;
+          audioRef.current.play().catch(() => setIsPlaying(false));
+        }
         setProgress(0);
       }
     };

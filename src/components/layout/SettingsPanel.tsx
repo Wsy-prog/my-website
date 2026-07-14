@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Settings, Pencil, Trash2, Check, X, ImageIcon, Video, ChevronDown, ChevronRight } from "lucide-react";
+import { Settings, Eye, EyeOff, Pencil, Trash2, Check, X, ImageIcon, Video, ChevronDown, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -195,11 +195,42 @@ export function SettingsPanel() {
     ? assets.filter(a => a.type === "video")
     : [];
 
+  // 背景专注模式
+  const [bgOnly, setBgOnly] = useState(false);
+
+  function toggleBgOnly() {
+    const next = !bgOnly;
+    setBgOnly(next);
+    document.documentElement.classList.toggle("bg-only-mode", next);
+  }
+
   return (
-    <Sheet open={open} onOpenChange={setOpen}>
-      <SheetTrigger className="fixed top-4 right-16 z-50 rounded-full p-2 bg-background/30 backdrop-blur-sm hover:bg-background/50 transition-colors" title="页面设置">
-        <Settings className="h-4 w-4" />
-      </SheetTrigger>
+    <>
+      {/* 只显示背景 按钮 */}
+      <button
+        onClick={toggleBgOnly}
+        className="bg-only-toggle fixed top-4 right-[4.5rem] z-[60] rounded-full p-2 transition-all duration-300 group"
+        title={bgOnly ? "退出背景模式" : "只显示背景"}
+      >
+        <div className="relative">
+          {bgOnly ? (
+            <EyeOff className="h-4 w-4 relative z-10 text-white drop-shadow-[0_0_6px_rgba(168,85,247,0.8)]" />
+          ) : (
+            <Eye className="h-4 w-4 relative z-10 text-muted-foreground group-hover:text-foreground transition-colors" />
+          )}
+          {bgOnly && (
+            <span className="absolute inset-0 rounded-full animate-ping bg-gradient-to-r from-purple-500 via-pink-400 to-cyan-400 opacity-40" />
+          )}
+        </div>
+        {bgOnly && (
+          <span className="absolute inset-0 rounded-full bg-gradient-to-br from-purple-500 via-pink-400 to-cyan-400 opacity-70 blur-sm -z-10" />
+        )}
+      </button>
+
+      <Sheet open={open} onOpenChange={setOpen}>
+        <SheetTrigger className="fixed top-4 right-16 z-50 rounded-full p-2 bg-background/30 backdrop-blur-sm hover:bg-background/50 transition-colors" title="页面设置">
+          <Settings className="h-4 w-4" />
+        </SheetTrigger>
       <SheetContent side="right" className="w-80 sm:w-96 pt-14 flex flex-col gap-5 overflow-y-auto max-h-screen">
 
         {/* 一键应用博主同款 — 最顶部 */}
@@ -318,20 +349,19 @@ export function SettingsPanel() {
         <Separator />
 
         {/* ===== 背景管理（可折叠） ===== */}
-        {isAdmin && (
-          <section>
-            <button onClick={() => setManageOpen(!manageOpen)}
-              className="w-full flex items-center justify-between text-sm font-semibold text-muted-foreground uppercase tracking-wide hover:text-foreground transition-colors">
-              <span>🖼️ 背景管理</span>
-              <ChevronDown className={`h-4 w-4 transition-transform ${manageOpen ? "rotate-180" : ""}`} />
-            </button>
+        <section>
+          <button onClick={() => setManageOpen(!manageOpen)}
+            className="w-full flex items-center justify-between text-sm font-semibold text-muted-foreground uppercase tracking-wide hover:text-foreground transition-colors">
+            <span>🖼️ 背景管理</span>
+            <ChevronDown className={`h-4 w-4 transition-transform ${manageOpen ? "rotate-180" : ""}`} />
+          </button>
 
-            {manageOpen && (
-              <div className="mt-3 space-y-2">
-                {/* 所有背景列表 */}
-                <div className="space-y-1.5 max-h-48 overflow-y-auto">
-                  {assets.map((asset) => (
-                    <div key={asset.id} className={`p-2 rounded-lg border flex items-center gap-2 ${activeAssetId === asset.id ? "border-primary/30 bg-primary/5" : "border-border"}`}>
+          {manageOpen && (
+            <div className="mt-3 space-y-2">
+              {/* 所有背景列表 */}
+              <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                {assets.map((asset) => (
+                  <div key={asset.id} className={`p-2 rounded-lg border flex items-center gap-2 ${activeAssetId === asset.id ? "border-primary/30 bg-primary/5" : "border-border"}`}>
                     {/* 缩略图 */}
                     {asset.id === "__aurora" ? (
                       <div className="w-9 h-7 rounded bg-gradient-to-br from-purple-500/30 to-cyan-400/30 flex items-center justify-center shrink-0 text-sm">🌌</div>
@@ -397,7 +427,6 @@ export function SettingsPanel() {
             </div>
           )}
         </section>
-          )}
 
         <Separator />
 
@@ -428,12 +457,10 @@ export function SettingsPanel() {
         <Separator />
 
         {/* ===== 数据备份 ===== */}
-        {isAdmin && (
-          <section>
-            <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide mb-3">💾 数据备份</h3>
-            <BackupSection />
-          </section>
-        )}
+        <section>
+          <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide mb-3">💾 数据备份</h3>
+          <BackupSection />
+        </section>
 
         {/* ===== 管理员登录 ===== */}
         <section>
@@ -444,6 +471,7 @@ export function SettingsPanel() {
         <p className="text-[10px] text-muted-foreground mt-auto pt-4">设置自动保存在本地浏览器</p>
       </SheetContent>
     </Sheet>
+    </>
   );
 }
 
@@ -477,7 +505,6 @@ function BackupSection() {
     const keys = [
       "blog_custom_posts",
       "gallery_photos",
-      "gallery_deleted_defaults",
       "travel_all_markers",
       "travel_markers_version",
       "music_tracks",
@@ -488,9 +515,6 @@ function BackupSection() {
       "bg_active_src",
       "guestbook_messages",
       "blog_custom_tags",
-      "card_theme",
-      "theme",
-      "scroll_animations_enabled",
     ];
     const backup: Record<string, any> = {};
     for (const k of keys) {
