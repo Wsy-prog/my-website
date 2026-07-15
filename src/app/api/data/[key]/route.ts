@@ -7,6 +7,7 @@ export const dynamic = "force-dynamic";
 // 无需认证即可写入的 key（访客可写的公开数据）
 const PUBLIC_WRITE_KEYS = [
   "guestbook_messages",
+  "guestbook_visitor_count",
 ];
 
 // 前缀匹配的公开写入 key（如 blog_comments_{slug} — 访客评论）

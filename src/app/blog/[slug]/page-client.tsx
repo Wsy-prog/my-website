@@ -20,6 +20,7 @@ import {
   saveComments,
   updateReplyDeep,
   addReplyDeep,
+  mergeCommentsFromServer,
   type BlogComment,
   type BlogReply,
 } from "@/lib/blog-comments";
@@ -257,9 +258,13 @@ function CommentSection({ slug, isAdmin }: { slug: string; isAdmin: boolean }) {
 
   useEffect(() => {
     setComments(loadComments(slug));
-    setLoaded(true);
     const saved = JSON.parse(localStorage.getItem("blog_comment_liked") || "[]") as number[];
     setLikedIds(saved);
+    // 从服务端拉取最新评论（双向合并）
+    mergeCommentsFromServer(slug).then(merged => {
+      setComments(merged);
+      setLoaded(true);
+    });
   }, [slug]);
 
   useEffect(() => {

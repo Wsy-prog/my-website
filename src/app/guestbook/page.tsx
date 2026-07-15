@@ -131,15 +131,29 @@ export default function GuestbookPage() {
   }, [messages, loaded]);
 
 useEffect(() => {
-  const stored = localStorage.getItem("guestbook_visitor_count");
+  // 从服务端读取访客计数
+  const syncVisitorCount = async () => {
+    try {
+      const res = await fetch("/api/data/guestbook_visitor_count");
+      const json = await res.json();
+      if (json.exists && typeof json.data === "number") {
+        setVisitorCount(json.data);
+      }
+    } catch {}
+  };
+  syncVisitorCount();
+
+  // 本地标记 + 异步上报 +1
   const thisVisit = localStorage.getItem("guestbook_visited");
-  let count = stored ? parseInt(stored, 10) : 0;
   if (!thisVisit) {
-    count += 1;
     localStorage.setItem("guestbook_visited", "1");
-    localStorage.setItem("guestbook_visitor_count", String(count));
+    // 异步上报计数 +1
+    fetch("/api/data/guestbook_visitor_count", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ data: 1 }),
+    }).catch(() => {});
   }
-  setVisitorCount(count);
 }, []);
   const [likedIds, setLikedIdsState] = useState<number[]>([]);
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
