@@ -4,7 +4,7 @@ import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
-import { Search, Calendar, Clock, Tag, List, Timeline as TimelineIcon, X, PenLine, Pencil, Trash2, Tags, Filter } from "lucide-react";
+import { Search, Calendar, Clock, List, Timeline as TimelineIcon, X, PenLine, Pencil, Trash2, Tags, Filter } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { AnimatedSection } from "@/components/shared/AnimatedSection";
 import { GradientText } from "@/components/shared/GradientText";
@@ -16,6 +16,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { useAnimation } from "@/lib/animation-context";
 import { blogPosts } from "@/data/blog-posts";
 import { getAllPosts, loadCustomPosts, deleteCustomPost, saveCustomPost } from "@/lib/blog-store";
+import { loadCustomTags, saveCustomTags } from "@/lib/blog-tags";
 import { getAllMarkers } from "@/lib/travel-store";
 
 const categories = [
@@ -45,6 +46,8 @@ function BlogPageInner() {
     }
   }, [tagParam]);
   const [activeCategory, setActiveCategory] = useState("all");
+  const [showDrafts, setShowDrafts] = useState(false);
+  const [draftCount, setDraftCount] = useState(0);
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [dateOpen, setDateOpen] = useState(false);
   const [dateStart, setDateStart] = useState("");
@@ -63,20 +66,13 @@ function BlogPageInner() {
   const [customTags, setCustomTagsState] = useState<string[]>([]);
   useEffect(() => { setCustomTagsState(loadCustomTags()); }, [tagManageOpen]);
 
-  function loadCustomTags(): string[] {
-    try { return JSON.parse(localStorage.getItem("blog_custom_tags") || "[]"); } catch { return []; }
-  }
-  function saveCustomTags(tags: string[]) {
-    localStorage.setItem("blog_custom_tags", JSON.stringify(tags));
-    setCustomTagsState(tags);
-  }
-
   function addCustomTag() {
     const val = newTagInput.trim();
     if (!val) return;
     const existing = customTags;
     if (!existing.includes(val) && !protectedTags.has(val)) {
       saveCustomTags([...existing, val]);
+      setCustomTagsState([...existing, val]);
       setNewTagInput("");
     }
   }
@@ -85,6 +81,7 @@ function BlogPageInner() {
     // 从标签池移除
     const updated = customTags.filter(t => t !== tag);
     saveCustomTags(updated);
+    setCustomTagsState(updated);
     // 从所有文章中移除该标签
     const all = getAllPosts(blogPosts);
     let changed = false;
@@ -102,10 +99,10 @@ function BlogPageInner() {
 
   // 每次导航回 /blog 或初次加载时刷新文章列表
   useEffect(() => {
-    setAllPosts(getAllPosts(blogPosts));
-    // 从 API 拉取最新数据
-    import("@/lib/blog-store").then(mod => mod.loadCustomPostsServer()).then(posts => {
-      setAllPosts(posts);
+    // 从 API 拉取最新数据（权威数据源）
+    import("@/lib/blog-store").then(mod => mod.loadCustomPostsServer()).then(serverPosts => {
+      setAllPosts(serverPosts);
+      setDraftCount(serverPosts.filter(p => p.draft).length);
     });
   }, [pathname]);
 
@@ -117,10 +114,14 @@ function BlogPageInner() {
   function handleDelete(slug: string) {
     deleteCustomPost(slug);
     setAllPosts(getAllPosts(blogPosts));
+    setDraftCount(loadCustomPosts().filter(p => p.draft).length);
     setDeleteTarget(null);
   }
 
   const filtered = allPosts.filter((post) => {
+    // 草稿筛选：管理员切换到草稿视图才显示；分类点击退出草稿视图
+    if (post.draft !== showDrafts) return false;
+    if (showDrafts) return true;
     const matchCategory = activeCategory === "all" || post.category === activeCategory;
     const matchSearch = post.title.includes(search) || (post.summary || "").includes(search) || post.tags.some((t) => t.includes(search));
     const matchTag = tagFilter.length === 0 || tagFilter.every((f) => post.tags.includes(f));
@@ -247,12 +248,21 @@ function BlogPageInner() {
 
       {/* Category Filter */}
       <div className="flex flex-wrap justify-center gap-2 mb-10">
+        {isAdmin && (
+          <Badge
+            variant={showDrafts ? "default" : "outline"}
+            className="px-4 py-2 text-sm rounded-full cursor-pointer hover:scale-105 transition-transform"
+            onClick={() => setShowDrafts(!showDrafts)}
+          >
+            📝 草稿{draftCount > 0 ? ` (${draftCount})` : ""}
+          </Badge>
+        )}
         {categories.map((cat) => (
           <Badge
             key={cat.key}
             variant={activeCategory === cat.key ? "default" : "outline"}
             className="px-4 py-2 text-sm rounded-full cursor-pointer hover:scale-105 transition-transform"
-            onClick={() => setActiveCategory(cat.key)}
+            onClick={() => { setActiveCategory(cat.key); setShowDrafts(false); }}
           >
             {cat.label}
           </Badge>
@@ -282,26 +292,29 @@ function BlogPageInner() {
                 ) : (
                   <div className="flex-1" />
                 )}
+                {post.draft && (
+                  <span className="text-[10px] text-amber-500 bg-amber-500/10 px-2 py-0.5 rounded-full font-medium mb-2 inline-block">草稿</span>
+                )}
                 <div className="flex items-center gap-4 text-xs text-muted-foreground">
                   <span className="flex items-center gap-1"><Calendar className="h-3 w-3" /> {post.date}</span>
                   <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> {post.readTime}</span>
                 </div>
               </Link>
               {isAdmin && (
-                <div className="absolute bottom-2 right-2 flex gap-1 opacity-0 group-hover/card:opacity-100 transition-opacity">
+                <div className="absolute bottom-2 right-2 flex gap-1 md:opacity-0 md:group-hover/card:opacity-100 md:transition-opacity">
                   <Link href={`/blog/new?edit=${post.slug}`} onClick={(e) => e.stopPropagation()}>
-                    <Button variant="ghost" size="icon" className="h-7 w-7 rounded-full">
+                    <Button variant="ghost" size="icon" className="h-7 w-7 rounded-full bg-background/80">
                       <Pencil className="h-3 w-3" />
                     </Button>
                   </Link>
                   {isCustomForDelete(post.slug) && (
                     deleteTarget === post.slug ? (
                       <div className="flex gap-1">
-                        <Button variant="destructive" size="sm" className="h-7 rounded-lg text-[10px]" onClick={() => handleDelete(post.slug)}>确认</Button>
-                        <Button variant="outline" size="sm" className="h-7 rounded-lg text-[10px]" onClick={() => setDeleteTarget(null)}>取消</Button>
+                        <Button variant="destructive" size="sm" className="h-7 rounded-lg text-[10px]" onClick={(e) => { e.stopPropagation(); e.preventDefault(); handleDelete(post.slug); }}>确认</Button>
+                        <Button variant="outline" size="sm" className="h-7 rounded-lg text-[10px]" onClick={(e) => { e.stopPropagation(); e.preventDefault(); setDeleteTarget(null); }}>取消</Button>
                       </div>
                     ) : (
-                      <Button variant="ghost" size="icon" className="h-7 w-7 rounded-full hover:text-destructive" onClick={() => setDeleteTarget(post.slug)}>
+                      <Button variant="ghost" size="icon" className="h-7 w-7 rounded-full hover:text-destructive" onClick={(e) => { e.stopPropagation(); e.preventDefault(); setDeleteTarget(post.slug); }}>
                         <Trash2 className="h-3 w-3" />
                       </Button>
                     )
@@ -352,9 +365,9 @@ function BlogPageInner() {
                   </div>
 
                   {/* Date label on spacer side */}
-                  <div className={`hidden sm:flex flex-1 items-start pt-1`}>
+                  <div className={`flex flex-1 items-start pt-1`}>
                     <div className={`flex-1 flex ${isEven ? "justify-end pr-1" : "justify-start pl-1"}`}>
-                      <div className={isEven ? "text-right" : "text-left"}>
+                      <div className={`${isEven ? "text-right" : "text-left"} max-sm:absolute max-sm:left-14 max-sm:top-0 max-sm:text-left`}>
                         {showYear && (
                           <motion.div
                             animate={{ opacity: 1, x: 0 }}
@@ -367,7 +380,7 @@ function BlogPageInner() {
                             {postYear}
                           </motion.div>
                         )}
-                        <div className="text-2xl sm:text-3xl font-bold text-muted-foreground/50 font-mono tracking-wide">
+                        <div className="text-2xl sm:text-3xl font-bold text-muted-foreground/50 font-mono tracking-wide max-sm:text-lg max-sm:font-semibold">
                           {postMonthDay}
                         </div>
                       </div>
@@ -395,6 +408,9 @@ function BlogPageInner() {
                             <span className="text-xs text-muted-foreground">{post.readTime}</span>
                           </div>
                           <h3 className="font-semibold mb-2 leading-snug">{post.title}</h3>
+                          {post.draft && (
+                            <span className="text-[10px] text-amber-500 bg-amber-500/10 px-2 py-0.5 rounded-full font-medium mb-2 inline-block">草稿</span>
+                          )}
                           <div className="flex flex-wrap gap-1.5">
                             {post.tags.slice(0, 3).map((tag) => (
                               <Badge key={tag} variant="secondary" className="text-[10px]">{tag}</Badge>
@@ -404,7 +420,7 @@ function BlogPageInner() {
                       </motion.div>
                     </Link>
                     {isAdmin && (
-                      <div className="absolute bottom-2 right-2 flex gap-1 opacity-0 group-hover/tlcard:opacity-100 transition-opacity z-10">
+                      <div className="absolute bottom-2 right-2 flex gap-1 md:opacity-0 md:group-hover/tlcard:opacity-100 md:transition-opacity z-10">
                         <Link href={`/blog/new?edit=${post.slug}`} onClick={(e) => e.stopPropagation()}>
                           <Button variant="ghost" size="icon" className="h-7 w-7 rounded-full bg-background/80">
                             <Pencil className="h-3 w-3" />
@@ -413,11 +429,11 @@ function BlogPageInner() {
                         {isCustomForDelete(post.slug) && (
                           deleteTarget === post.slug ? (
                             <div className="flex gap-1">
-                              <Button variant="destructive" size="sm" className="h-7 rounded-lg text-[10px]" onClick={() => handleDelete(post.slug)}>确认</Button>
-                              <Button variant="outline" size="sm" className="h-7 rounded-lg text-[10px]" onClick={() => setDeleteTarget(null)}>取消</Button>
+                              <Button variant="destructive" size="sm" className="h-7 rounded-lg text-[10px]" onClick={(e) => { e.stopPropagation(); e.preventDefault(); handleDelete(post.slug); }}>确认</Button>
+                              <Button variant="outline" size="sm" className="h-7 rounded-lg text-[10px]" onClick={(e) => { e.stopPropagation(); e.preventDefault(); setDeleteTarget(null); }}>取消</Button>
                             </div>
                           ) : (
-                            <Button variant="ghost" size="icon" className="h-7 w-7 rounded-full bg-background/80 hover:text-destructive" onClick={() => setDeleteTarget(post.slug)}>
+                            <Button variant="ghost" size="icon" className="h-7 w-7 rounded-full bg-background/80 hover:text-destructive" onClick={(e) => { e.stopPropagation(); e.preventDefault(); setDeleteTarget(post.slug); }}>
                               <Trash2 className="h-3 w-3" />
                             </Button>
                           )
@@ -435,7 +451,12 @@ function BlogPageInner() {
       {filtered.length === 0 && (
         <div className="text-center py-20 text-muted-foreground">
           <Search className="h-12 w-12 mx-auto mb-4 opacity-30" />
-          <p>没有找到匹配的文章</p>
+          <p>{showDrafts ? "没有草稿" : "没有找到匹配的文章"}</p>
+          {showDrafts && (
+            <button onClick={() => setShowDrafts(false)} className="text-xs text-primary hover:underline mt-2">
+              返回全部文章
+            </button>
+          )}
         </div>
       )}
 

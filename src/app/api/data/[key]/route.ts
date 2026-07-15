@@ -4,16 +4,13 @@ import { getAuthFromRequest } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
-// 无需认证即可写入的 key（留言板 + 博客文章 + 照片 + 旅行地点 — 所有数据同步）
+// 无需认证即可写入的 key（访客可写的公开数据）
 const PUBLIC_WRITE_KEYS = [
   "guestbook_messages",
-  "blog_custom_posts",
-  "gallery_photos",
-  "travel_all_markers",
-  "music_tracks",
-  "bg_assets",
-  "site_defaults",
 ];
+
+// 前缀匹配的公开写入 key（如 blog_comments_{slug} — 访客评论）
+const PUBLIC_WRITE_PREFIXES = ["blog_comments_"];
 
 // GET /api/data/{key} — 读取数据（公开）
 export async function GET(
@@ -26,7 +23,7 @@ export async function GET(
     const result = await loadData!(key);
     return NextResponse.json(result);
   } catch (e: any) {
-    return NextResponse.json({ data: null, exists: false, error: e.message }, { status: 500 });
+    return NextResponse.json({ error: "读取失败" }, { status: 500 });
   }
 }
 
@@ -37,7 +34,11 @@ export async function POST(
 ) {
   const { key } = await params;
 
-  if (!PUBLIC_WRITE_KEYS.includes(key) && !getAuthFromRequest(req)) {
+  const isPublicWrite =
+    PUBLIC_WRITE_KEYS.includes(key) ||
+    PUBLIC_WRITE_PREFIXES.some((p) => key.startsWith(p));
+
+  if (!isPublicWrite && !getAuthFromRequest(req)) {
     return NextResponse.json({ ok: false, error: "需要管理员权限" }, { status: 401 });
   }
 
@@ -47,6 +48,6 @@ export async function POST(
     await saveData!(key, body.data);
     return NextResponse.json({ ok: true });
   } catch (e: any) {
-    return NextResponse.json({ ok: false, error: e.message }, { status: 500 });
+    return NextResponse.json({ ok: false, error: "写入失败" }, { status: 500 });
   }
 }

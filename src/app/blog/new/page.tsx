@@ -6,13 +6,14 @@ import { motion } from "framer-motion";
 import {
   Bold, Italic, Underline, List, ListOrdered,
   ImageIcon, Smile, ArrowLeft, Send, Quote, Trash2, Undo2, Redo2,
-  Images,
+  Images, Code, Link, Save,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { saveCustomPost, loadCustomPosts, deleteCustomPost } from "@/lib/blog-store";
+import { loadCustomTags, saveCustomTags, getAllTags } from "@/lib/blog-tags";
 import { useAuth } from "@/lib/auth-context";
 import type { BlogPost } from "@/data/blog-posts";
 import { getAllMarkers } from "@/lib/travel-store";
@@ -29,17 +30,7 @@ const categories = [
 
 const EMOJIS = ["😀","😂","🥰","😎","🤔","💪","✨","🔥","🌟","💡","📷","✈️","🏔️","🌊","🌅","🎉","❤️","👍","👏","🙏","🎵","📝","💻","🎮","🏀","☕","🍜","🌸","🌿","🐱"];
 
-function loadCustomTags(): string[] {
-  if (typeof window === "undefined") return [];
-  try { return JSON.parse(localStorage.getItem("blog_custom_tags") || "[]"); } catch { return []; }
-}
-function saveCustomTags(tags: string[]) {
-  localStorage.setItem("blog_custom_tags", JSON.stringify(tags));
-}
-function getAllTags(): string[] {
-  const base = typeof window !== "undefined" ? getAllMarkers().map(m => m.title) : [];
-  return [...new Set([...base, ...loadCustomTags()])].sort((a, b) => a.localeCompare(b, "zh"));
-}
+const locationTags = typeof window !== "undefined" ? getAllMarkers().map(m => m.title) : [];
 
 export const dynamic = "force-dynamic";
 
@@ -65,6 +56,26 @@ function NewBlogPageInner() {
   const [bgOpacity, setBgOpacity] = useState(60);
   const [isDark, setIsDark] = useState(false);
   const [commentsEnabled, setCommentsEnabled] = useState(true);
+  const [isDraft, setIsDraft] = useState(false);
+  const [autoSave, setAutoSave] = useState(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("blog_autosave_enabled") !== "false";
+    }
+    return true;
+  });
+  const [publishing, setPublishing] = useState(false);
+  const [savedIndicator, setSavedIndicator] = useState(false);
+  const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastSavedHtmlRef = useRef("");
+  const isSavingRef = useRef(false);
+
+  // 🔑 固定 slug ref：新建草稿首次保存时生成，后续复用
+  const draftSlugRef = useRef<string | null>(null);
+
+  // 插入链接
+  const [showLinkDialog, setShowLinkDialog] = useState(false);
+  const [linkUrl, setLinkUrl] = useState("");
+  const [linkText, setLinkText] = useState("");
 
   useEffect(() => {
     setIsDark(document.documentElement.classList.contains("dark"));
@@ -74,47 +85,66 @@ function NewBlogPageInner() {
     observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
     return () => observer.disconnect();
   }, []);
-  const [loaded, setLoaded] = useState(false);
 
   // 标签弹窗
   const [tagMenu, setTagMenu] = useState<"closed" | "main" | "existing" | "custom">("closed");
   const [tagSearch, setTagSearch] = useState("");
   const [customTagInput, setCustomTagInput] = useState("");
   const [tagError, setTagError] = useState("");
-  const [existingTags, setExistingTags] = useState(() => getAllTags());
+  const [existingTags, setExistingTags] = useState(() => getAllTags(locationTags));
 
   // 已有图片弹窗
   const [showExistingImages, setShowExistingImages] = useState(false);
   const [existingImages, setExistingImages] = useState<string[]>([]);
 
   // 收集所有已有的图片：摄影画廊照片 + 文章封面 + 背景图片
+  const [pendingImages, setPendingImages] = useState(false);
+
   useEffect(() => {
-    const collect = () => {
+    const collectAll = (): string[] => {
       const urlSet = new Set<string>();
       // 照片
-      import("@/data/photos").then(mod => {
-        mod.loadPhotos().forEach((p: Photo) => { if (p.src) urlSet.add(p.src); });
-      }).finally(() => {
-        // 已有文章的封面
-        const posts = loadCustomPosts();
-        posts.forEach((p) => { if (p.coverImage) urlSet.add(p.coverImage); });
-        // 背景图片
-        try {
-          const assets = JSON.parse(localStorage.getItem("bg_assets") || "[]") as { src: string; type: string }[];
-          assets.forEach((a) => { if (a.type === "image" && a.src) urlSet.add(a.src); });
-        } catch {}
-        setExistingImages(Array.from(urlSet));
-      });
+      try {
+        const photosData = JSON.parse(localStorage.getItem("gallery_photos") || "[]") as Photo[];
+        photosData.forEach((p) => { if (p.src) urlSet.add(p.src); });
+      } catch {}
+      // 已有文章的封面
+      const posts = loadCustomPosts();
+      posts.forEach((p) => { if (p.coverImage) urlSet.add(p.coverImage); });
+      // 背景图片
+      try {
+        const assets = JSON.parse(localStorage.getItem("bg_assets") || "[]") as { src: string; type: string }[];
+        assets.forEach((a) => { if (a.type === "image" && a.src) urlSet.add(a.src); });
+      } catch {}
+      return Array.from(urlSet);
     };
-    collect();
+    setExistingImages(collectAll());
     // 也尝试从服务端拉照片
     import("@/data/photos").then(mod => mod.loadPhotosFromServer()).then(serverPhotos => {
       if (serverPhotos && serverPhotos.length > 0) {
         localStorage.setItem("gallery_photos", JSON.stringify(serverPhotos));
-        collect();
+        setExistingImages(collectAll());
       }
     });
   }, []);
+
+  function openExistingImages() {
+    if (pendingImages) return;
+    setPendingImages(true);
+    // 先收集现有图片
+    const urlSet = new Set(existingImages);
+    // 然后尝试从服务端拉照片
+    import("@/data/photos").then(mod => mod.loadPhotosFromServer()).then(serverPhotos => {
+      if (serverPhotos && serverPhotos.length > 0) {
+        localStorage.setItem("gallery_photos", JSON.stringify(serverPhotos));
+        serverPhotos.forEach((p: Photo) => { if (p.src) urlSet.add(p.src); });
+      }
+    }).finally(() => {
+      setExistingImages(Array.from(urlSet));
+      setPendingImages(false);
+      setShowExistingImages(true);
+    });
+  }
 
   // 编辑模式：加载已有文章
   useEffect(() => {
@@ -129,14 +159,115 @@ function NewBlogPageInner() {
     setCoverImage(post.coverImage || null);
     setCoverPosition(post.coverPosition ?? 50);
     setCommentsEnabled(post.commentsEnabled !== false);
+    setIsDraft(post.draft === true);
     // 延迟填充编辑器内容（等 DOM 就绪）
     setTimeout(() => {
       if (editorRef.current) {
         editorRef.current.innerHTML = post.content || "<p><br></p>";
+        lastSavedHtmlRef.current = post.content || "<p><br></p>";
       }
     }, 50);
-    setLoaded(true);
   }, [editSlug]);
+
+  // ⏱ 防抖自动保存：停止输入 5 秒后自动保存
+  const autoSaveEnabledRef = useRef(autoSave);
+  autoSaveEnabledRef.current = autoSave;
+
+  useEffect(() => {
+    if (!autoSave) {
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current);
+        autoSaveTimerRef.current = null;
+      }
+      return;
+    }
+    // 监听键盘和点击事件触发防抖重设
+    const handler = () => {
+      if (!autoSaveEnabledRef.current) return;
+      const html = editorRef.current?.innerHTML || "";
+      const hasChanges = html !== lastSavedHtmlRef.current && html.replace(/<[^>]*>/g, "").trim();
+      if (!hasChanges || isSavingRef.current) return;
+
+      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+      autoSaveTimerRef.current = setTimeout(() => {
+        doAutoSave();
+      }, 5000);
+    };
+
+    const editor = editorRef.current;
+    if (editor) {
+      editor.addEventListener("input", handler);
+      editor.addEventListener("keyup", handler);
+    }
+    return () => {
+      if (editor) {
+        editor.removeEventListener("input", handler);
+        editor.removeEventListener("keyup", handler);
+      }
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current);
+        autoSaveTimerRef.current = null;
+      }
+    };
+  }, []); // 空 deps — 始终绑定一次，用 ref 读取最新值
+
+  // 切换自动保存开关时持久化
+  useEffect(() => {
+    localStorage.setItem("blog_autosave_enabled", String(autoSave));
+  }, [autoSave]);
+
+  async function doAutoSave() {
+    isSavingRef.current = true;
+    const html = editorRef.current?.innerHTML || "";
+    const wordCount = (editorRef.current?.textContent || "").replace(/\s/g, "").length;
+
+    let slug: string;
+    let date: string;
+    if (isEditing && editSlug) {
+      const posts = loadCustomPosts();
+      const existing = posts.find((p) => p.slug === editSlug);
+      slug = editSlug;
+      date = existing?.date || new Date().toISOString().split("T")[0];
+    } else {
+      // 🔑 新建草稿：首次生成固定 slug，后续复用
+      if (!draftSlugRef.current) {
+        draftSlugRef.current = "draft-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 6);
+      }
+      slug = draftSlugRef.current;
+      date = new Date().toISOString().split("T")[0];
+    }
+
+    const post = {
+      slug,
+      title: title.trim() || "未命名草稿",
+      date,
+      readTime: Math.max(1, Math.round(wordCount / 400)) + " 分钟",
+      category: category as BlogPost["category"],
+      tags,
+      summary: summary.trim(),
+      content: html,
+      coverImage: coverImage || undefined,
+      coverPosition: coverImage ? coverPosition : undefined,
+      commentsEnabled,
+      // 🔑 新建文章（非编辑模式）自动保存/手动保存一律存为草稿
+      draft: isEditing ? isDraft : true,
+    };
+    saveCustomPost(post as any);
+    lastSavedHtmlRef.current = html;
+    setSavedIndicator(true);
+    setTimeout(() => setSavedIndicator(false), 2000);
+    isSavingRef.current = false;
+
+    // 🔑 非编辑模式首次保存后更新 URL，防止刷新后找不到文章
+    if (!isEditing && draftSlugRef.current && !window.location.search.includes("edit=")) {
+      router.replace(`/blog/new?edit=${draftSlugRef.current}`, { scroll: false });
+    }
+  }
+
+  // 手动保存（已合并到 handleSaveDraft，保留以供快捷键等调用）
+  function handleManualSave() {
+    handleSaveDraft();
+  }
 
   // 执行编辑命令
   const exec = useCallback((command: string, value?: string) => {
@@ -152,7 +283,10 @@ function NewBlogPageInner() {
       setCoverImage("⏳");
       const url = await compressAndUpload(file, 800);
       setCoverImage(url);
-    } catch { setCoverImage(null); }
+    } catch {
+      setCoverImage(null);
+      setSavedIndicator(false);
+    }
   }
 
   // 插入图片
@@ -164,7 +298,6 @@ function NewBlogPageInner() {
       const el = editorRef.current;
       if (el) {
         el.focus();
-        // 恢复选区到编辑器
         const sel = window.getSelection();
         if (sel && sel.rangeCount > 0) {
           const range = sel.getRangeAt(0);
@@ -174,7 +307,6 @@ function NewBlogPageInner() {
           img.className = "rounded-xl my-4 max-w-full";
           img.style.maxHeight = "400px";
           range.insertNode(img);
-          // 在图片后插入换行
           const br = document.createElement("br");
           range.setStartAfter(img);
           range.insertNode(br);
@@ -185,7 +317,9 @@ function NewBlogPageInner() {
         }
         fileInputRef.current!.value = "";
       }
-    } catch { /* ignore */ }
+    } catch {
+      // 图片上传失败由自动保存时的检测覆盖
+    }
   }
 
   // 插入表情
@@ -194,8 +328,88 @@ function NewBlogPageInner() {
     if (el) {
       el.focus();
       document.execCommand("insertText", false, emoji);
-      setShowEmoji(false);
     }
+  }
+
+  // 插入代码块
+  function insertCodeBlock() {
+    const el = editorRef.current;
+    if (!el) return;
+    el.focus();
+    const sel = window.getSelection();
+    const selectedText = sel && sel.rangeCount > 0 ? sel.toString() : "";
+    const pre = document.createElement("pre");
+    pre.className = "code-block bg-muted/60 rounded-xl p-4 my-4 text-sm font-mono overflow-x-auto outline-none";
+    pre.setAttribute("spellcheck", "false");
+    if (selectedText) {
+      pre.textContent = selectedText;
+    }
+
+    // 后面跟一个空段落，保证代码块下方可继续写正文
+    const trailingP = document.createElement("p");
+    trailingP.innerHTML = "<br>";
+
+    // 插入
+    if (sel && sel.rangeCount > 0 && selectedText) {
+      const range = sel.getRangeAt(0);
+      range.deleteContents();
+      range.insertNode(pre);
+      pre.after(trailingP);
+    } else if (sel && sel.rangeCount > 0) {
+      const range = sel.getRangeAt(0);
+      range.insertNode(pre);
+      pre.after(trailingP);
+    } else {
+      el.appendChild(pre);
+      el.appendChild(trailingP);
+    }
+    // 光标移到 pre 内部开头
+    const newRange = document.createRange();
+    newRange.setStart(pre, 0);
+    newRange.collapse(true);
+    sel?.removeAllRanges();
+    sel?.addRange(newRange);
+    el.focus();
+  }
+
+  // 插入链接 —— 保存光标位置，弹窗关闭后插入
+  const savedRangeRef = useRef<Range | null>(null);
+
+  function openLinkDialog() {
+    const el = editorRef.current;
+    if (!el) return;
+    el.focus();
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0) {
+      savedRangeRef.current = sel.getRangeAt(0).cloneRange();
+    }
+    setShowLinkDialog(true);
+    setLinkUrl("");
+    setLinkText("");
+  }
+
+  function insertLink() {
+    if (!linkUrl.trim()) return;
+    const el = editorRef.current;
+    if (!el) return;
+    el.focus();
+
+    const sel = window.getSelection();
+    const displayText = linkText.trim() || linkUrl.trim();
+    const href = linkUrl.trim().replace(/"/g, "&quot;");
+    const linkHtml = `<a href="${href}" class="text-primary underline" target="_blank" rel="noopener noreferrer">${displayText}</a>`;
+
+    if (savedRangeRef.current && sel) {
+      sel.removeAllRanges();
+      sel.addRange(savedRangeRef.current);
+      savedRangeRef.current = null;
+    }
+
+    document.execCommand("insertHTML", false, linkHtml);
+
+    setShowLinkDialog(false);
+    setLinkUrl("");
+    setLinkText("");
   }
 
   // 检测当前选区所在的标题级别
@@ -203,7 +417,6 @@ function NewBlogPageInner() {
     const sel = window.getSelection();
     if (!sel || !sel.rangeCount) return;
     const range = sel.getRangeAt(0);
-    // 尝试从 startContainer 往上找，同时检查 anchorNode
     for (const startNode of [range.startContainer, range.endContainer]) {
       let node: Node | null = startNode;
       while (node && node !== editorRef.current) {
@@ -217,7 +430,6 @@ function NewBlogPageInner() {
     setCurrentHeading("");
   }
 
-  // 执行标题命令并更新状态
   function applyHeading(value: string) {
     if (value) {
       exec("formatBlock", `<${value}>`);
@@ -228,13 +440,11 @@ function NewBlogPageInner() {
     }
   }
 
-  // 恢复焦点到编辑器
   function focusEditor() {
     const el = editorRef.current;
     if (el) {
       el.focus();
       detectHeading();
-      // 如果编辑器为空，确保有初始段落
       if (el.innerHTML === "" || el.textContent?.trim() === "") {
         el.innerHTML = "<p><br></p>";
         const range = document.createRange();
@@ -243,6 +453,78 @@ function NewBlogPageInner() {
         const sel = window.getSelection();
         sel?.removeAllRanges();
         sel?.addRange(range);
+      }
+    }
+  }
+
+  // ⌨️ 键盘快捷键处理
+  function handleEditorKeyDown(e: React.KeyboardEvent) {
+    // Ctrl+B / Ctrl+B
+    if (e.ctrlKey && e.key === "b") {
+      e.preventDefault();
+      exec("bold");
+      return;
+    }
+    // Ctrl+I
+    if (e.ctrlKey && e.key === "i") {
+      e.preventDefault();
+      exec("italic");
+      return;
+    }
+    // Ctrl+K 插入链接
+    if (e.ctrlKey && e.key === "k") {
+      e.preventDefault();
+      openLinkDialog();
+      return;
+    }
+    // Ctrl+Shift+S 保存草稿
+    if (e.ctrlKey && e.shiftKey && (e.key === "s" || e.key === "S")) {
+      e.preventDefault();
+      handleSaveDraft();
+      return;
+    }
+    // Ctrl+S 不触发浏览器保存
+    if (e.ctrlKey && (e.key === "s" || e.key === "S")) {
+      e.preventDefault();
+      return;
+    }
+
+    // 原有的 blockquote Enter 处理
+    if (e.key === "Enter") {
+      const sel3 = window.getSelection();
+      if (!sel3 || !sel3.rangeCount) return;
+      let nodeBq: Node | null = sel3.getRangeAt(0).startContainer;
+      while (nodeBq && nodeBq !== editorRef.current) {
+        if (nodeBq.nodeType === 1 && (nodeBq as Element).tagName === "BLOCKQUOTE") {
+          const text = (nodeBq as Element).textContent || "";
+          if (text.trim() === "") {
+            e.preventDefault();
+            const p = document.createElement("p");
+            p.innerHTML = "<br>";
+            (nodeBq as Element).replaceWith(p);
+            const range = document.createRange();
+            range.setStart(p, 0);
+            range.collapse(true);
+            sel3.removeAllRanges();
+            sel3.addRange(range);
+            return;
+          }
+          const range = sel3.getRangeAt(0);
+          if (range.collapsed && range.startOffset >= (nodeBq.textContent || "").length) {
+            e.preventDefault();
+            const p = document.createElement("p");
+            p.innerHTML = "<br>";
+            (nodeBq as Element).after(p);
+            const range2 = document.createRange();
+            range2.setStart(p, 0);
+            range2.collapse(true);
+            sel3.removeAllRanges();
+            sel3.addRange(range2);
+            return;
+          }
+          break;
+        }
+        nodeBq = nodeBq.parentNode;
       }
     }
   }
@@ -263,20 +545,20 @@ function NewBlogPageInner() {
     if (!custom.includes(val)) {
       custom.push(val);
       saveCustomTags(custom);
-      setExistingTags(getAllTags());
+      setExistingTags(getAllTags(locationTags));
     }
     if (!tags.includes(val)) setTags([...tags, val]);
     setCustomTagInput(""); setTagError(""); setTagMenu("closed");
   }
 
   // 发布 / 更新
-  function handleSave() {
-    if (!title.trim()) return;
+  function handlePublish() {
+    if (!title.trim() || publishing) return;
+    setPublishing(true);
     const html = editorRef.current?.innerHTML || "";
     if (!html.replace(/<[^>]*>/g, "").trim()) return;
     const wordCount = (editorRef.current?.textContent || "").replace(/\s/g, "").length;
 
-    // 编辑模式：保留原 slug 和日期
     let slug: string;
     let date: string;
     if (isEditing && editSlug) {
@@ -285,7 +567,12 @@ function NewBlogPageInner() {
       slug = editSlug;
       date = existing?.date || new Date().toISOString().split("T")[0];
     } else {
-      slug = Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 6);
+      // 🔑 如果有草稿 slug，复用（覆盖草稿，避免残留）
+      if (draftSlugRef.current) {
+        slug = draftSlugRef.current;
+      } else {
+        slug = Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 6);
+      }
       date = new Date().toISOString().split("T")[0];
     }
 
@@ -301,14 +588,62 @@ function NewBlogPageInner() {
       coverImage: coverImage || undefined,
       coverPosition: coverImage ? coverPosition : undefined,
       commentsEnabled: commentsEnabled,
+      draft: false,
     };
     saveCustomPost(post as any);
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    setPublishing(false);
     router.push("/blog");
+  }
+
+  // 保存草稿
+  function handleSaveDraft() {
+    const html = editorRef.current?.innerHTML || "";
+    if (!title.trim() && !html.replace(/<[^>]*>/g, "").trim()) return;
+    const wordCount = (editorRef.current?.textContent || "").replace(/\s/g, "").length;
+
+    let slug: string;
+    let date: string;
+    if (isEditing && editSlug) {
+      const posts = loadCustomPosts();
+      const existing = posts.find((p) => p.slug === editSlug);
+      slug = editSlug;
+      date = existing?.date || new Date().toISOString().split("T")[0];
+    } else {
+      if (!draftSlugRef.current) {
+        draftSlugRef.current = Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 6);
+      }
+      slug = draftSlugRef.current;
+      date = new Date().toISOString().split("T")[0];
+    }
+
+    const post = {
+      slug,
+      title: title.trim() || "未命名草稿",
+      date,
+      readTime: Math.max(1, Math.round(wordCount / 400)) + " 分钟",
+      category: category as BlogPost["category"],
+      tags,
+      summary: summary.trim(),
+      content: html,
+      coverImage: coverImage || undefined,
+      coverPosition: coverImage ? coverPosition : undefined,
+      commentsEnabled,
+      draft: true,
+    };
+    saveCustomPost(post as any);
+    lastSavedHtmlRef.current = html;
+    setSavedIndicator(true);
+    setTimeout(() => setSavedIndicator(false), 2000);
+    if (!isEditing && draftSlugRef.current) {
+      router.replace(`/blog/new?edit=${draftSlugRef.current}`, { scroll: false });
+    }
   }
 
   // 删除（编辑模式下）
   function handleDelete() {
     if (!editSlug) return;
+    if (!confirm("确定要删除这篇文章吗？此操作不可撤销。")) return;
     deleteCustomPost(editSlug);
     router.push("/blog");
   }
@@ -328,10 +663,13 @@ function NewBlogPageInner() {
     <div className="max-w-3xl mx-auto px-4 py-20">
       {/* Header */}
       <div className="flex items-center gap-4 mb-8">
-        <Button variant="ghost" size="icon" className="rounded-xl" onClick={() => router.back()}>
+        <Button variant="ghost" size="icon" className="rounded-xl" onClick={() => router.push("/blog")}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
-        <h1 className="text-2xl font-bold">{isEditing ? "编辑文章" : "写文章"}</h1>
+        <h1 className="text-2xl font-bold">
+          {isEditing ? "编辑文章" : "写文章"}
+          {isEditing && isDraft && <span className="ml-2 text-[11px] font-medium text-amber-500 bg-amber-500/10 px-2 py-0.5 rounded-full align-middle">草稿</span>}
+        </h1>
         {isAdmin && isEditing && (
           <Button variant="outline" size="sm" className="rounded-lg text-xs text-destructive ml-auto" onClick={handleDelete}>
             <Trash2 className="h-3.5 w-3.5 mr-1" /> 删除文章
@@ -385,7 +723,6 @@ function NewBlogPageInner() {
               <button
                 onClick={() => {
                   const urlSet = new Set<string>();
-                  // 先从 localStorage 收集
                   import("@/data/photos").then(mod => {
                     mod.loadPhotos().forEach((p: Photo) => { if (p.src) urlSet.add(p.src); });
                   }).finally(() => {
@@ -397,7 +734,6 @@ function NewBlogPageInner() {
                     posts.forEach((p) => { if (p.coverImage) urlSet.add(p.coverImage); });
                     setExistingImages(Array.from(urlSet));
                   });
-                  // 再尝试从服务端拉照片
                   import("@/data/photos").then(mod => mod.loadPhotosFromServer()).then(serverPhotos => {
                     if (serverPhotos && serverPhotos.length > 0) {
                       localStorage.setItem("gallery_photos", JSON.stringify(serverPhotos));
@@ -445,7 +781,6 @@ function NewBlogPageInner() {
 
             {tagMenu !== "closed" && (
               <div className="absolute top-full left-0 mt-1 z-50 w-64 rounded-xl border border-border bg-popover shadow-xl p-3">
-                {/* 关闭按钮 */}
                 <button
                   onClick={() => { setTagMenu("closed"); setTagSearch(""); setCustomTagInput(""); setTagError(""); }}
                   className="absolute top-2 right-2 w-5 h-5 rounded-full hover:bg-accent flex items-center justify-center text-muted-foreground hover:text-foreground text-xs transition-colors"
@@ -515,19 +850,36 @@ function NewBlogPageInner() {
             <option value="h3">标题3</option>
           </select>
           <span className="w-px h-5 bg-border mx-0.5" />
-          <button onClick={() => exec("bold")} className="p-1.5 rounded hover:bg-accent transition-colors" title="加粗"><Bold className="h-4 w-4" /></button>
-          <button onClick={() => exec("italic")} className="p-1.5 rounded hover:bg-accent transition-colors" title="斜体"><Italic className="h-4 w-4" /></button>
+          <button onClick={() => exec("bold")} className="p-1.5 rounded hover:bg-accent transition-colors" title="加粗 (Ctrl+B)"><Bold className="h-4 w-4" /></button>
+          <button onClick={() => exec("italic")} className="p-1.5 rounded hover:bg-accent transition-colors" title="斜体 (Ctrl+I)"><Italic className="h-4 w-4" /></button>
           <button onClick={() => exec("underline")} className="p-1.5 rounded hover:bg-accent transition-colors" title="下划线"><Underline className="h-4 w-4" /></button>
           <span className="w-px h-5 bg-border mx-0.5" />
           <button onClick={() => exec("insertUnorderedList")} className="p-1.5 rounded hover:bg-accent transition-colors" title="无序列表"><List className="h-4 w-4" /></button>
           <button onClick={() => exec("insertOrderedList")} className="p-1.5 rounded hover:bg-accent transition-colors" title="有序列表"><ListOrdered className="h-4 w-4" /></button>
           <button onClick={() => exec("formatBlock", "<blockquote>")} className="p-1.5 rounded hover:bg-accent transition-colors" title="引用"><Quote className="h-4 w-4" /></button>
           <span className="w-px h-5 bg-border mx-0.5" />
+          <button onClick={insertCodeBlock} className="p-1.5 rounded hover:bg-accent transition-colors" title="插入代码"><Code className="h-4 w-4" /></button>
+          <button onClick={openLinkDialog} className="p-1.5 rounded hover:bg-accent transition-colors" title="插入链接 (Ctrl+K)"><Link className="h-4 w-4" /></button>
+          <span className="w-px h-5 bg-border mx-0.5" />
           <button onClick={() => fileInputRef.current?.click()} className="p-1.5 rounded hover:bg-accent transition-colors" title="插入图片"><ImageIcon className="h-4 w-4" /></button>
           <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={insertImage} />
-          <button onClick={() => setShowEmoji(!showEmoji)} className={`p-1.5 rounded transition-colors ${showEmoji ? "bg-accent" : "hover:bg-accent"}`} title="表情">
-            <Smile className="h-4 w-4" />
-          </button>
+          <div className="relative">
+            <button onClick={() => setShowEmoji(!showEmoji)} className={`p-1.5 rounded transition-colors ${showEmoji ? "bg-accent" : "hover:bg-accent"}`} title="表情">
+              <Smile className="h-4 w-4" />
+            </button>
+            {showEmoji && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setShowEmoji(false)} />
+                <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }}
+                  className="absolute top-full left-0 mt-1 p-3 rounded-xl border border-border bg-popover shadow-xl grid grid-cols-10 gap-1 max-h-32 overflow-y-auto z-50 min-w-[260px]">
+                  {EMOJIS.map((emoji) => (
+                    <button key={emoji} onClick={() => insertEmoji(emoji)}
+                      className="text-lg p-1 rounded hover:bg-accent transition-colors">{emoji}</button>
+                  ))}
+                </motion.div>
+              </>
+            )}
+          </div>
           <span className="w-px h-5 bg-border mx-0.5" />
           <span className="text-[10px] text-muted-foreground ml-1">模糊</span>
           <input
@@ -539,17 +891,6 @@ function NewBlogPageInner() {
           <span className="text-[10px] text-muted-foreground w-5">{bgOpacity}</span>
         </div>
 
-        {/* Emoji grid */}
-        {showEmoji && (
-          <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
-            className="p-3 rounded-xl border border-border bg-background grid grid-cols-10 gap-1 max-h-32 overflow-y-auto sticky top-44 z-40">
-            {EMOJIS.map((emoji) => (
-              <button key={emoji} onClick={() => insertEmoji(emoji)}
-                className="text-lg p-1 rounded hover:bg-accent transition-colors">{emoji}</button>
-            ))}
-          </motion.div>
-        )}
-
         {/* 所见即所得编辑器 */}
         <div
           ref={editorRef}
@@ -557,57 +898,51 @@ function NewBlogPageInner() {
           suppressContentEditableWarning
           onClick={focusEditor}
           onKeyUp={detectHeading}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              const sel = window.getSelection();
-              if (!sel || !sel.rangeCount) return;
-              // 检查是否在 blockquote 内
-              let node: Node | null = sel.getRangeAt(0).startContainer;
-              while (node && node !== editorRef.current) {
-                if (node.nodeType === 1 && (node as Element).tagName === "BLOCKQUOTE") {
-                  const text = (node as Element).textContent || "";
-                  // 如果 blockquote 内容为空，退出引用
-                  if (text.trim() === "") {
-                    e.preventDefault();
-                    const p = document.createElement("p");
-                    p.innerHTML = "<br>";
-                    (node as Element).replaceWith(p);
-                    const range = document.createRange();
-                    range.setStart(p, 0);
-                    range.collapse(true);
-                    sel.removeAllRanges();
-                    sel.addRange(range);
-                    return;
-                  }
-                  // 如果在 blockquote 末尾按 Enter，在后面插入新段落
-                  const range = sel.getRangeAt(0);
-                  if (range.collapsed && range.startOffset >= (node.textContent || "").length) {
-                    e.preventDefault();
-                    const p = document.createElement("p");
-                    p.innerHTML = "<br>";
-                    (node as Element).after(p);
-                    const range2 = document.createRange();
-                    range2.setStart(p, 0);
-                    range2.collapse(true);
-                    sel.removeAllRanges();
-                    sel.addRange(range2);
-                    return;
-                  }
-                  break;
-                }
-                node = node.parentNode;
-              }
-            }
-          }}
-          className="min-h-[500px] p-6 rounded-xl border border-white/20 text-base leading-relaxed focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-text shadow-lg [&_h1]:text-3xl [&_h1]:font-bold [&_h1]:mt-8 [&_h1]:mb-4 [&_h2]:text-2xl [&_h2]:font-semibold [&_h2]:mt-6 [&_h2]:mb-3 [&_h3]:text-xl [&_h3]:font-semibold [&_h3]:mt-5 [&_h3]:mb-2 [&_p]:mb-4 [&_p]:leading-relaxed [&_ul]:list-disc [&_ul]:pl-6 [&_ul]:mb-4 [&_li]:mb-1 [&_ol]:list-decimal [&_ol]:pl-6 [&_ol]:mb-4 [&_li]:mb-1 [&_blockquote]:border-l-4 [&_blockquote]:border-primary/40 [&_blockquote]:pl-4 [&_blockquote]:py-2 [&_blockquote]:my-4 [&_blockquote]:italic [&_blockquote]:text-muted-foreground [&_blockquote]:bg-muted/30 [&_blockquote]:rounded-r-lg [&_img]:rounded-xl [&_img]:my-4 [&_img]:max-w-full [&_strong]:font-semibold [&_em]:italic empty:before:content-['开始写作...'] empty:before:text-muted-foreground/40"
+          onKeyDown={handleEditorKeyDown}
+          className="min-h-[500px] p-6 rounded-xl border border-white/20 text-base leading-relaxed focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-text shadow-lg [&_h1]:text-3xl [&_h1]:font-bold [&_h1]:mt-8 [&_h1]:mb-4 [&_h2]:text-2xl [&_h2]:font-semibold [&_h2]:mt-6 [&_h2]:mb-3 [&_h3]:text-xl [&_h3]:font-semibold [&_h3]:mt-5 [&_h3]:mb-2 [&_p]:mb-4 [&_p]:leading-relaxed [&_ul]:list-disc [&_ul]:pl-6 [&_ul]:mb-4 [&_li]:mb-1 [&_ol]:list-decimal [&_ol]:pl-6 [&_ol]:mb-4 [&_li]:mb-1 [&_blockquote]:border-l-4 [&_blockquote]:border-primary/40 [&_blockquote]:pl-4 [&_blockquote]:py-2 [&_blockquote]:my-4 [&_blockquote]:italic [&_blockquote]:text-muted-foreground [&_blockquote]:bg-muted/30 [&_blockquote]:rounded-r-lg [&_img]:rounded-xl [&_img]:my-4 [&_img]:max-w-full [&_strong]:font-semibold [&_em]:italic [&_pre]:bg-muted/60 [&_pre]:rounded-xl [&_pre]:p-4 [&_pre]:my-4 [&_pre]:overflow-x-auto [&_pre]:text-sm [&_pre]:font-mono [&_code]:bg-muted/50 [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded-md [&_code]:text-sm [&_code]:font-mono [&_code]:text-primary [&_pre_code]:bg-transparent [&_pre_code]:px-0 [&_pre_code]:py-0 [&_pre_code]:rounded-none [&_pre_code]:text-foreground [&_a]:text-primary [&_a]:underline empty:before:content-['\5F00\59CB\5199\4F5C...'] empty:before:text-muted-foreground/40"
           style={{
             backdropFilter: `blur(${bgOpacity < 30 ? 4 : bgOpacity < 60 ? 12 : 24}px)`,
             background: isDark
               ? `rgba(255,255,255,${bgOpacity / 1000})`
               : `rgba(255,255,255,${bgOpacity / 100})`,
           }}
-          onPaste={(e) => {
-            // 粘贴时只保留纯文本
+          onPaste={async (e) => {
+            const items = e.clipboardData.items;
+            for (let i = 0; i < items.length; i++) {
+              if (items[i].type.startsWith("image/")) {
+                e.preventDefault();
+                const file = items[i].getAsFile();
+                if (file) {
+                  try {
+                    const url = await compressAndUpload(file, 800);
+                    const el = editorRef.current;
+                    if (el) {
+                      el.focus();
+                      const sel = window.getSelection();
+                      const img = document.createElement("img");
+                      img.src = url;
+                      img.alt = "粘贴图片";
+                      img.className = "rounded-xl my-4 max-w-full";
+                      img.style.maxHeight = "400px";
+                      if (sel && sel.rangeCount > 0) {
+                        const range = sel.getRangeAt(0);
+                        range.insertNode(img);
+                        const br = document.createElement("br");
+                        range.setStartAfter(img);
+                        range.insertNode(br);
+                        range.setStartAfter(br);
+                        range.collapse(true);
+                        sel.removeAllRanges();
+                        sel.addRange(range);
+                      } else {
+                        el.appendChild(img);
+                      }
+                    }
+                  } catch { /* ignore */ }
+                }
+                return;
+              }
+            }
             e.preventDefault();
             const text = e.clipboardData.getData("text/plain");
             document.execCommand("insertText", false, text);
@@ -637,8 +972,44 @@ function NewBlogPageInner() {
           </DialogContent>
         </Dialog>
 
-        {/* 评论区开关（管理员可见） */}
-        <div className="flex items-center gap-3">
+        {/* 插入链接弹窗 */}
+        <Dialog open={showLinkDialog} onOpenChange={setShowLinkDialog}>
+          <DialogContent className="sm:max-w-sm">
+            <DialogHeader>
+              <DialogTitle>🔗 插入链接</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3 mt-2">
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">链接地址</label>
+                <Input
+                  placeholder="https://..."
+                  value={linkUrl}
+                  onChange={(e) => setLinkUrl(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") insertLink(); }}
+                  className="rounded-lg text-sm"
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">显示文字（可选）</label>
+                <Input
+                  placeholder="点击此处"
+                  value={linkText}
+                  onChange={(e) => setLinkText(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") insertLink(); }}
+                  className="rounded-lg text-sm"
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <Button variant="outline" size="sm" className="rounded-lg" onClick={() => { setShowLinkDialog(false); setLinkUrl(""); setLinkText(""); }}>取消</Button>
+                <Button size="sm" className="rounded-lg" onClick={insertLink} disabled={!linkUrl.trim()}>插入</Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* 评论区开关 + 自动保存 */}
+        <div className="flex flex-wrap items-center gap-4">
           <label className="flex items-center gap-2 cursor-pointer">
             <button
               type="button"
@@ -653,16 +1024,47 @@ function NewBlogPageInner() {
                 commentsEnabled ? "translate-x-4" : "translate-x-0"
               }`} />
             </button>
-            <span className="text-xs text-muted-foreground select-none">💬 评论区（{commentsEnabled ? "开启" : "关闭"}）</span>
+            <span className="text-xs text-muted-foreground select-none">💬 评论（{commentsEnabled ? "开启" : "关闭"}）</span>
           </label>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <button
+              type="button"
+              role="switch"
+              aria-checked={autoSave}
+              onClick={() => setAutoSave(!autoSave)}
+              className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
+                autoSave ? "bg-primary" : "bg-input"
+              }`}
+            >
+              <span className={`pointer-events-none block h-4 w-4 rounded-full bg-white shadow-lg ring-0 transition-transform duration-200 ${
+                autoSave ? "translate-x-4" : "translate-x-0"
+              }`} />
+            </button>
+            <span className="text-xs text-muted-foreground select-none">💾 自动保存（{autoSave ? "停止输入5秒后" : "关闭"}）</span>
+          </label>
+          {savedIndicator && (
+            <span className="text-[11px] text-green-500 animate-pulse">✅ 已保存</span>
+          )}
         </div>
 
-        {/* Save */}
-        <div className="flex justify-end gap-3 pt-4 border-t border-border">
-          <Button variant="outline" className="rounded-xl" onClick={() => router.back()}>取消</Button>
-          <Button onClick={handleSave} disabled={!title.trim()}
+        {/* Save & Publish */}
+        <div className="flex justify-end gap-3 pt-4 border-t border-border flex-wrap">
+          <Button variant="outline" className="rounded-xl"
+            onClick={() => {
+              const hasContent = (editorRef.current?.textContent || "").replace(/\s/g, "").length > 0 || title.trim();
+              if (hasContent) {
+                if (!confirm("有未发布的内容，确定离开吗？")) return;
+              }
+              router.push("/blog");
+            }}>
+            取消
+          </Button>
+          <Button variant="outline" className="rounded-xl gap-2" onClick={handleSaveDraft} title="保存为草稿 (Ctrl+Shift+S)">
+            <Save className="h-4 w-4" /> 保存草稿
+          </Button>
+          <Button onClick={handlePublish} disabled={!title.trim() || publishing}
             className="rounded-xl gap-2 bg-gradient-to-r from-purple-600 to-cyan-500 text-white">
-            <Send className="h-4 w-4" /> {isEditing ? "保存修改" : "发布文章"}
+            <Send className="h-4 w-4" /> {publishing ? "发布中..." : (isEditing ? "发布更新" : "发布文章")}
           </Button>
         </div>
       </div>

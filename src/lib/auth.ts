@@ -1,7 +1,11 @@
 import { createHmac, timingSafeEqual } from "crypto";
 
-const JWT_SECRET = process.env.JWT_SECRET || "dev-secret-change-me";
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "admin";
+const JWT_SECRET: string = process.env.JWT_SECRET || (() => {
+  throw new Error("CRITICAL: JWT_SECRET environment variable is not set");
+})();
+const ADMIN_PASSWORD: string = process.env.ADMIN_PASSWORD || (() => {
+  throw new Error("CRITICAL: ADMIN_PASSWORD environment variable is not set");
+})();
 
 // ========== JWT ==========
 

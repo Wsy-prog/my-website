@@ -8,7 +8,7 @@ function getPool(): Pool {
     if (!url) throw new Error("PG_URL is not set");
     pool = new Pool({
       connectionString: url,
-      ssl: { rejectUnauthorized: false },
+      ssl: { rejectUnauthorized: process.env.NODE_ENV === "production" },
       max: 3,
     });
   }

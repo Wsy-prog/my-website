@@ -8,16 +8,44 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { motion } from "framer-motion";
 import { blogPosts, type BlogPost } from "@/data/blog-posts";
-import { getAllPosts } from "@/lib/blog-store";
+import { getAllPosts, loadCustomPostsServer } from "@/lib/blog-store";
 
 export function FeaturedPosts() {
   const [posts, setPosts] = useState<BlogPost[]>([]);
 
   useEffect(() => {
+    // 先展示本地缓存
     setPosts(getAllPosts(blogPosts).sort((a, b) => b.date.localeCompare(a.date)));
+    // 再从服务端拉取更新
+    loadCustomPostsServer().then(all => {
+      setPosts(all.sort((a, b) => b.date.localeCompare(a.date)));
+    });
   }, []);
 
-  if (posts.length === 0) return null;
+  if (posts.length === 0) {
+    return (
+      <section className="py-20 px-4">
+        <div className="max-w-5xl mx-auto">
+          <div className="flex items-center justify-between mb-10">
+            <div>
+              <motion.h2
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: false }}
+                className="text-3xl sm:text-4xl font-bold"
+              >
+                最新文章
+              </motion.h2>
+              <p className="text-muted-foreground mt-2">记录思考与感悟</p>
+            </div>
+          </div>
+          <div className="text-center py-20 text-muted-foreground">
+            <p>暂无文章，敬请期待</p>
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="py-20 px-4">
@@ -42,7 +70,7 @@ export function FeaturedPosts() {
         </div>
 
         <div className="grid md:grid-cols-3 gap-6">
-          {posts.slice(0, 3).map((post, i) => (
+          {posts.filter(p => !p.draft).slice(0, 3).map((post, i) => (
             <Link key={post.slug} href={`/blog/${post.slug}`}>
               <GlassCard delay={i * 0.15} className="h-full flex flex-col">
                 {/* Cover */}

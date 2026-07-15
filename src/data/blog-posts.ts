@@ -13,6 +13,7 @@ export interface BlogPost {
   coverImage?: string; // base64 封面图
   coverPosition?: number; // 0-100, 封面垂直位置
   commentsEnabled?: boolean; // 管理员可关闭评论区
+  draft?: boolean; // 草稿状态，草稿不公开显示
 }
 
 export const blogPosts: BlogPost[] = [];

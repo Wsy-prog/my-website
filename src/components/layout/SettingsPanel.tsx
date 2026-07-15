@@ -44,9 +44,13 @@ function saveAssets(assets: BgAsset[], sync = true) {
 
 async function syncAssetsToApi(assets: BgAsset[]) {
   try {
+    const token = typeof window !== "undefined" ? localStorage.getItem("admin_token") : null;
     await fetch("/api/data/bg_assets", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
       body: JSON.stringify({ data: assets }),
     });
   } catch { /* 静默 */ }
@@ -204,6 +208,10 @@ export function SettingsPanel() {
   function importVideoUrl() {
     const url = videoUrlRef.current?.value.trim();
     if (!url) return;
+    // 简单验证 URL 是否可能是视频
+    if (!url.startsWith("http://") && !url.startsWith("https://")) {
+      return;
+    }
     const asset: BgAsset = { id: Date.now().toString(36), name: url.split("/").pop()?.replace(/\.[^.]+$/, "") || "视频背景", type: "video", src: url };
     const updated = [...assets, asset];
     setAssets(updated); saveAssets(updated);
@@ -302,10 +310,13 @@ export function SettingsPanel() {
                   if (d.bg_active_src) localStorage.setItem("bg_active_src", d.bg_active_src);
                   if (d.theme) localStorage.setItem("theme", d.theme);
                   if (d.card_theme) localStorage.setItem("card_theme", d.card_theme);
+                  // 动态应用设置，不刷新页面
                   window.location.reload();
+                } else {
+                  alert("管理员还未设置默认外观");
                 }
               })
-              .catch(() => {});
+              .catch(() => alert("获取默认外观失败，请检查网络"));
           }}
         >
           ✨ 一键设置博主同款背景
@@ -525,11 +536,16 @@ export function SettingsPanel() {
 
         <Separator />
 
-        {/* ===== 数据备份 ===== */}
-        <section>
-          <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide mb-3">💾 数据备份</h3>
-          <BackupSection />
-        </section>
+        {/* ===== 数据备份（管理员） ===== */}
+        {isAdmin && (
+          <>
+            <Separator />
+            <section>
+              <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide mb-3">💾 数据备份</h3>
+              <BackupSection />
+            </section>
+          </>
+        )}
 
         {/* ===== 管理员登录 ===== */}
         <section>
@@ -720,7 +736,9 @@ function BackupSection() {
   function exportData() {
     const keys = [
       "blog_custom_posts",
+      "blog_custom_tags",
       "gallery_photos",
+      "gallery_deleted_defaults",
       "travel_all_markers",
       "travel_markers_version",
       "music_tracks",
@@ -729,16 +747,42 @@ function BackupSection() {
       "bg_blur",
       "bg_opacity",
       "bg_active_src",
+      "bg_customized",
       "guestbook_messages",
-      "blog_custom_tags",
+      "guestbook_liked",
+      "guestbook_visitor_count",
+      "guestbook_visited",
+      "card_theme",
+      "theme",
+      "scroll_animations_enabled",
+      "blog_comment_liked",
+      "blog_autosave_enabled",
     ];
     const backup: Record<string, any> = {};
     for (const k of keys) {
       try {
         const v = localStorage.getItem(k);
-        if (v) backup[k] = JSON.parse(v);
+        if (v !== null && v !== undefined) {
+          try { backup[k] = JSON.parse(v); } catch { backup[k] = v; }
+        }
       } catch {}
     }
+    // 备份所有文章评论
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith("blog_comments_") && key !== "blog_comments_slugs" && key !== "blog_comments_all") {
+          try {
+            const v = localStorage.getItem(key);
+            if (v) backup[key] = JSON.parse(v);
+          } catch {}
+        }
+      }
+    } catch {}
+    // 从 API 拉取补充数据（确保导出包含服务端最新内容）
+    fetch("/api/data/site_defaults").then(r => r.json()).then(json => {
+      if (json.exists && json.data) backup.site_defaults = json.data;
+    }).catch(() => {});
     backup._exported_at = new Date().toISOString();
     const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
@@ -758,17 +802,34 @@ function BackupSection() {
     input.onchange = (e) => {
       const file = (e.target as HTMLInputElement).files?.[0];
       if (!file) return;
+      if (!confirm("⚠️ 恢复备份将覆盖本地所有数据，确认继续？")) return;
       const reader = new FileReader();
       reader.onload = () => {
         try {
           const data = JSON.parse(reader.result as string);
+          if (!data || typeof data !== "object" || Array.isArray(data)) {
+            setStatus("文件格式错误：无效的备份文件");
+            setTimeout(() => setStatus(null), 2000);
+            return;
+          }
+          if (!data._exported_at && !data.blog_custom_posts && !data.guestbook_messages) {
+            setStatus("文件格式错误：不是有效的备份文件");
+            setTimeout(() => setStatus(null), 2000);
+            return;
+          }
           let count = 0;
           for (const [k, v] of Object.entries(data)) {
             if (k.startsWith("_")) continue;
-            localStorage.setItem(k, typeof v === "string" ? v : JSON.stringify(v));
+            if (typeof v === "string") {
+              localStorage.setItem(k, v);
+            } else {
+              localStorage.setItem(k, JSON.stringify(v));
+            }
             count++;
           }
           setStatus(`已恢复 ${count} 项数据！刷新页面生效`);
+          // 同步到服务端
+          syncImportedData(data);
           setTimeout(() => setStatus(null), 3000);
         } catch {
           setStatus("文件格式错误");
@@ -778,6 +839,46 @@ function BackupSection() {
       reader.readAsText(file);
     };
     input.click();
+  }
+
+  async function syncImportedData(data: Record<string, any>) {
+    // 将关键数据同步回 API
+    const syncKeys = [
+      "blog_custom_posts", "gallery_photos", "travel_all_markers",
+      "music_tracks", "bg_assets", "guestbook_messages",
+      "site_defaults",
+    ];
+    for (const k of syncKeys) {
+      if (data[k] !== undefined) {
+        try {
+          const token = localStorage.getItem("admin_token");
+          await fetch(`/api/data/${k}`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify({ data: data[k] }),
+          });
+        } catch {}
+      }
+    }
+    // 同步每篇文章的评论（blog_comments_{slug} 独立 key）
+    for (const [k, v] of Object.entries(data)) {
+      if (k.startsWith("blog_comments_") && k !== "blog_comments_slugs" && k !== "blog_comments_all") {
+        try {
+          const token = localStorage.getItem("admin_token");
+          await fetch(`/api/data/${k}`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify({ data: v }),
+          });
+        } catch {}
+      }
+    }
   }
 
   return (

@@ -75,8 +75,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       })
       .catch(() => {
-        // 离线时信任本地 token
-        setState({ isAdmin: true, isLoading: false, loginError: "" });
+        // 网络错误 → 不信任本地 token，防止过期 token 越权
+        setState({ isAdmin: false, isLoading: false, loginError: "" });
       });
   }, []);
 

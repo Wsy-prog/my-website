@@ -255,7 +255,10 @@ export default function TravelPage() {
   );
 }
 
-const TravelMap = dynamic(() => import("./TravelMap"), { ssr: false });
+const TravelMap = dynamic(() => import("./TravelMap"), {
+  ssr: false,
+  loading: () => <div className="h-full w-full flex items-center justify-center text-sm text-muted-foreground animate-pulse">加载地图...</div>,
+});
 
 function EditForm({ form, setForm, onSave, onCancel }: {
   form: Partial<TravelMarker>;
@@ -296,6 +299,18 @@ function EditForm({ form, setForm, onSave, onCancel }: {
               ))}
             </div>
           )}
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <label className="text-[10px] text-muted-foreground">纬度</label>
+          <Input type="number" step="0.01" min="-90" max="90" placeholder="30.0" value={form.lat ?? ""} onChange={e => setForm({ ...form, lat: e.target.value ? parseFloat(e.target.value) : undefined })}
+            className="h-8 text-xs rounded-lg" />
+        </div>
+        <div>
+          <label className="text-[10px] text-muted-foreground">经度</label>
+          <Input type="number" step="0.01" min="-180" max="180" placeholder="110.0" value={form.lng ?? ""} onChange={e => setForm({ ...form, lng: e.target.value ? parseFloat(e.target.value) : undefined })}
+            className="h-8 text-xs rounded-lg" />
         </div>
       </div>
       <div className="flex gap-2">
