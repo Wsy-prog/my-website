@@ -28,13 +28,9 @@ export async function loadFromApi(): Promise<Photo[]> {
 /** 同步到服务端 */
 async function saveToApi(photos: Photo[]) {
   try {
-    const token = typeof window !== "undefined" ? localStorage.getItem("admin_token") : null;
     await fetch("/api/data/gallery_photos", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ data: photos }),
     });
   } catch { /* 静默 */ }

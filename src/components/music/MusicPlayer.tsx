@@ -21,19 +21,11 @@ const SEED_TRACKS: Track[] = [
 const STORAGE_KEY = "music_tracks";
 
 // ========== API 同步 ==========
-function getToken(): string | null {
-  try { return typeof window !== "undefined" ? localStorage.getItem("admin_token") : null; } catch { return null; }
-}
-
 async function syncToApi(tracks: Track[]) {
   try {
-    const token = getToken();
     await fetch("/api/data/music_tracks", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ data: tracks }),
     });
   } catch { /* 静默 */ }
@@ -148,20 +140,10 @@ export function MusicPlayer() {
 
   // ===== 歌单操作（统一，不区分内置/自定义） =====
 
-  // 防抖保存：重命名等操作防抖 300ms
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  function debouncedSaveTracks(updated: Track[]) {
-    setTracks(updated);
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = setTimeout(() => {
-      saveTracks(updated);
-    }, 300);
-  }
-
   function updateTrack(index: number, field: "title" | "artist", value: string) {
     const updated = tracks.map((t, i) => i === index ? { ...t, [field]: value } : t);
-    debouncedSaveTracks(updated);
+    setTracks(updated);
+    saveTracks(updated);
   }
 
   function moveTrack(index: number, dir: -1 | 1) {

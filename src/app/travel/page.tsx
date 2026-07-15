@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { blogPosts, type BlogPost } from "@/data/blog-posts";
-import { getAllPosts, saveCustomPost } from "@/lib/blog-store";
+import { getAllPosts, loadCustomPosts, saveCustomPost } from "@/lib/blog-store";
 import { type TravelMarker } from "@/data/travel-markers";
 import { getAllMarkers, saveAllMarkers } from "@/lib/travel-store";
 import { loadPhotos } from "@/data/photos";
@@ -99,10 +99,12 @@ export default function TravelPage() {
       localStorage.setItem("blog_custom_tags", JSON.stringify(customTags.filter(t => t !== marker.title)));
     } catch { /* ignore */ }
 
-    // 更新所有文章的 tags（移除该地点标签）
+    // 更新所有自定义文章的 tags（移除该地点标签），但不要复制静态文章
     allPosts.forEach((post) => {
+      // 跳过静态文章（不在自定义列表中），避免 saveCustomPost 复制静态文导致重复
+      if (!loadCustomPosts().some(p => p.slug === post.slug)) return;
       if (post.tags.includes(marker.title)) {
-        saveCustomPost({ ...post, tags: post.tags.filter(t => t !== marker.title) });
+        saveCustomPost({ ...post, tags: post.tags.filter(t => t !== marker.title) }).catch(() => {});
       }
     });
   }
@@ -255,10 +257,7 @@ export default function TravelPage() {
   );
 }
 
-const TravelMap = dynamic(() => import("./TravelMap"), {
-  ssr: false,
-  loading: () => <div className="h-full w-full flex items-center justify-center text-sm text-muted-foreground animate-pulse">加载地图...</div>,
-});
+const TravelMap = dynamic(() => import("./TravelMap"), { ssr: false });
 
 function EditForm({ form, setForm, onSave, onCancel }: {
   form: Partial<TravelMarker>;
@@ -299,18 +298,6 @@ function EditForm({ form, setForm, onSave, onCancel }: {
               ))}
             </div>
           )}
-        </div>
-      </div>
-      <div className="grid grid-cols-2 gap-2">
-        <div>
-          <label className="text-[10px] text-muted-foreground">纬度</label>
-          <Input type="number" step="0.01" min="-90" max="90" placeholder="30.0" value={form.lat ?? ""} onChange={e => setForm({ ...form, lat: e.target.value ? parseFloat(e.target.value) : undefined })}
-            className="h-8 text-xs rounded-lg" />
-        </div>
-        <div>
-          <label className="text-[10px] text-muted-foreground">经度</label>
-          <Input type="number" step="0.01" min="-180" max="180" placeholder="110.0" value={form.lng ?? ""} onChange={e => setForm({ ...form, lng: e.target.value ? parseFloat(e.target.value) : undefined })}
-            className="h-8 text-xs rounded-lg" />
         </div>
       </div>
       <div className="flex gap-2">

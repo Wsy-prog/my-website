@@ -4,7 +4,7 @@ import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
-import { Search, Calendar, Clock, List, Timeline as TimelineIcon, X, PenLine, Pencil, Trash2, Tags, Filter } from "lucide-react";
+import { Search, Calendar, Clock, Tag, List, Timeline as TimelineIcon, X, PenLine, Pencil, Trash2, Tags, Filter } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { AnimatedSection } from "@/components/shared/AnimatedSection";
 import { GradientText } from "@/components/shared/GradientText";
@@ -16,7 +16,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { useAnimation } from "@/lib/animation-context";
 import { blogPosts } from "@/data/blog-posts";
 import { getAllPosts, loadCustomPosts, deleteCustomPost, saveCustomPost } from "@/lib/blog-store";
-import { loadCustomTags, saveCustomTags } from "@/lib/blog-tags";
 import { getAllMarkers } from "@/lib/travel-store";
 
 const categories = [
@@ -66,13 +65,20 @@ function BlogPageInner() {
   const [customTags, setCustomTagsState] = useState<string[]>([]);
   useEffect(() => { setCustomTagsState(loadCustomTags()); }, [tagManageOpen]);
 
+  function loadCustomTags(): string[] {
+    try { return JSON.parse(localStorage.getItem("blog_custom_tags") || "[]"); } catch { return []; }
+  }
+  function saveCustomTags(tags: string[]) {
+    localStorage.setItem("blog_custom_tags", JSON.stringify(tags));
+    setCustomTagsState(tags);
+  }
+
   function addCustomTag() {
     const val = newTagInput.trim();
     if (!val) return;
     const existing = customTags;
     if (!existing.includes(val) && !protectedTags.has(val)) {
       saveCustomTags([...existing, val]);
-      setCustomTagsState([...existing, val]);
       setNewTagInput("");
     }
   }
@@ -81,7 +87,6 @@ function BlogPageInner() {
     // 从标签池移除
     const updated = customTags.filter(t => t !== tag);
     saveCustomTags(updated);
-    setCustomTagsState(updated);
     // 从所有文章中移除该标签
     const all = getAllPosts(blogPosts);
     let changed = false;
@@ -89,7 +94,7 @@ function BlogPageInner() {
       if (post.tags.includes(tag)) {
         changed = true;
         const updatedPost = { ...post, tags: post.tags.filter(t => t !== tag) };
-        saveCustomPost(updatedPost);
+        saveCustomPost(updatedPost).catch(() => {});
         return updatedPost;
       }
       return post;
@@ -99,9 +104,12 @@ function BlogPageInner() {
 
   // 每次导航回 /blog 或初次加载时刷新文章列表
   useEffect(() => {
-    // 从 API 拉取最新数据（权威数据源）
+    const posts = getAllPosts(blogPosts);
+    setAllPosts(posts);
+    setDraftCount(posts.filter(p => p.draft).length);
+    // 从 API 拉取最新数据，合并静态文章
     import("@/lib/blog-store").then(mod => mod.loadCustomPostsServer()).then(serverPosts => {
-      setAllPosts(serverPosts);
+      setAllPosts([...serverPosts, ...blogPosts]);
       setDraftCount(serverPosts.filter(p => p.draft).length);
     });
   }, [pathname]);
@@ -112,7 +120,7 @@ function BlogPageInner() {
   }
 
   function handleDelete(slug: string) {
-    deleteCustomPost(slug);
+    deleteCustomPost(slug).catch(() => {});
     setAllPosts(getAllPosts(blogPosts));
     setDraftCount(loadCustomPosts().filter(p => p.draft).length);
     setDeleteTarget(null);
@@ -301,9 +309,9 @@ function BlogPageInner() {
                 </div>
               </Link>
               {isAdmin && (
-                <div className="absolute bottom-2 right-2 flex gap-1 md:opacity-0 md:group-hover/card:opacity-100 md:transition-opacity">
+                <div className="absolute bottom-2 right-2 flex gap-1 opacity-0 group-hover/card:opacity-100 transition-opacity">
                   <Link href={`/blog/new?edit=${post.slug}`} onClick={(e) => e.stopPropagation()}>
-                    <Button variant="ghost" size="icon" className="h-7 w-7 rounded-full bg-background/80">
+                    <Button variant="ghost" size="icon" className="h-7 w-7 rounded-full">
                       <Pencil className="h-3 w-3" />
                     </Button>
                   </Link>
@@ -420,7 +428,7 @@ function BlogPageInner() {
                       </motion.div>
                     </Link>
                     {isAdmin && (
-                      <div className="absolute bottom-2 right-2 flex gap-1 md:opacity-0 md:group-hover/tlcard:opacity-100 md:transition-opacity z-10">
+                      <div className="absolute bottom-2 right-2 flex gap-1 opacity-0 group-hover/tlcard:opacity-100 transition-opacity z-10">
                         <Link href={`/blog/new?edit=${post.slug}`} onClick={(e) => e.stopPropagation()}>
                           <Button variant="ghost" size="icon" className="h-7 w-7 rounded-full bg-background/80">
                             <Pencil className="h-3 w-3" />

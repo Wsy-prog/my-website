@@ -58,20 +58,9 @@ function GalleryPageInner() {
   // 加载照片
   useEffect(() => {
     setPhotos(loadPhotos());
-    // 从 API 拉取最新数据，合并到本地（不覆盖用户正在做的操作）
-    import("@/data/photos").then(mod => mod.loadPhotosFromServer()).then(apiPhotos => {
-      if (apiPhotos.length > 0) {
-        setPhotos(prev => {
-          const prevIds = new Set(prev.map(p => p.id));
-          const merged = [...prev];
-          for (const apiPhoto of apiPhotos) {
-            if (!prevIds.has(apiPhoto.id)) {
-              merged.push(apiPhoto);
-            }
-          }
-          return merged;
-        });
-      }
+    // 从 API 拉取最新数据（完成后才允许自动保存，避免覆盖）
+    import("@/data/photos").then(mod => mod.loadPhotosFromServer()).then(photos => {
+      setPhotos(photos);
       setLoaded(true);
     });
   }, []);
@@ -517,10 +506,10 @@ function GalleryPageInner() {
                   className="break-inside-avoid rounded-xl overflow-hidden cursor-pointer group relative"
                   onClick={() => setLightboxIndex(i)}
                 >
-                  {/* Edit button — 移动端始终显示 */}
+                  {/* Edit button */}
                   {isAdmin && (
                     <button
-                      className="absolute bottom-2 right-2 z-10 w-7 h-7 rounded-full bg-black/50 text-white/70 hover:text-white hover:bg-black/70 flex items-center justify-center md:opacity-0 md:group-hover:opacity-100 md:transition-all duration-200"
+                      className="absolute bottom-2 right-2 z-10 w-7 h-7 rounded-full bg-black/50 text-white/70 hover:text-white hover:bg-black/70 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-200"
                       onClick={(e) => openEdit(photo, e)}
                       title="管理照片"
                     >
@@ -845,10 +834,10 @@ function TimelineView({
                       transition={enabled ? { duration: 0.2 } : { duration: 0 }}
                     >
                       <GlassCard className="p-3 cursor-pointer overflow-hidden relative group/tl" onClick={() => onPhotoClick(photo.id)}>
-                        {/* Edit button — 移动端始终显示 */}
+                        {/* Edit button */}
                         {isAdmin && (
                           <button
-                            className="absolute top-2 right-2 z-10 w-6 h-6 rounded-full bg-muted/80 hover:bg-muted flex items-center justify-center md:opacity-0 md:group-hover/tl:opacity-100 md:transition-all duration-200"
+                            className="absolute top-2 right-2 z-10 w-6 h-6 rounded-full bg-muted/80 hover:bg-muted flex items-center justify-center opacity-0 group-hover/tl:opacity-100 transition-all duration-200"
                             onClick={(e) => onEdit(photo, e)}
                             title="管理照片"
                           >

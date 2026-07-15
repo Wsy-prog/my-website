@@ -2,6 +2,11 @@ import type { BlogPost } from "@/data/blog-posts";
 
 const CUSTOM_POSTS_KEY = "blog_custom_posts";
 
+function getToken(): string | null {
+  if (typeof window === "undefined") return null;
+  try { return localStorage.getItem("admin_token"); } catch { return null; }
+}
+
 function sanitizePost(p: Partial<BlogPost>): BlogPost {
   return {
     slug: p.slug || "",
@@ -17,11 +22,6 @@ function sanitizePost(p: Partial<BlogPost>): BlogPost {
     commentsEnabled: p.commentsEnabled !== false,
     draft: p.draft === true,
   };
-}
-
-function getToken(): string | null {
-  if (typeof window === "undefined") return null;
-  try { return localStorage.getItem("admin_token"); } catch { return null; }
 }
 
 /** 从服务端加载博客文章（异步，权威数据源） */
@@ -86,8 +86,11 @@ export async function loadCustomPostsServer(): Promise<BlogPost[]> {
   return posts;
 }
 
-/** 保存文章到本地 + 异步同步到服务端 */
-export function saveCustomPost(post: BlogPost): boolean {
+/**
+ * 保存文章：先写 localStorage（即时），再同步到 API（await）。
+ * 返回 { ok: boolean }，调用方可选择是否给用户反馈。
+ */
+export async function saveCustomPost(post: BlogPost): Promise<{ ok: boolean }> {
   const posts = loadCache();
   const idx = posts.findIndex((p) => p.slug === post.slug);
   if (idx >= 0) {
@@ -96,17 +99,17 @@ export function saveCustomPost(post: BlogPost): boolean {
     posts.unshift(post);
   }
   saveCache(posts);
-  // 异步同步到服务端（不阻塞 UI）
-  saveToApi(posts);
-  return true;
+  // 同步到 API（带 token 认证，await 等待结果）
+  const ok = await saveToApi(posts);
+  return { ok };
 }
 
-/** 删除文章：本地删除 + 异步同步到服务端 */
-export function deleteCustomPost(slug: string): boolean {
+/** 删除文章：本地 + API */
+export async function deleteCustomPost(slug: string): Promise<{ ok: boolean }> {
   const posts = loadCache().filter((p) => p.slug !== slug);
   saveCache(posts);
-  saveToApi(posts);
-  return true;
+  const ok = await saveToApi(posts);
+  return { ok };
 }
 
 /** 合并静态文章 + 本地缓存文章 */

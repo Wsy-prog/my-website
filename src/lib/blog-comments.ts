@@ -1,6 +1,5 @@
-// 博客评论区存储 —— 基于 localStorage + API 同步（每篇文章独立 key）
+// 博客评论区存储 —— 基于 localStorage + API 同步
 // 数据结构：blog_comments_{slug} → BlogComment[]
-// 不再使用 blog_comments_all 单一 key 避免并发写入覆盖
 
 export interface BlogReply {
   id: number;
@@ -51,7 +50,7 @@ function saveCommentsRaw(slug: string, comments: any[]) {
   }
 }
 
-// ========== 服务端同步（每篇文章独立 key） ==========
+// ========== 服务端同步 ==========
 
 /** 获取所有有评论的 slug */
 export function getCommentSlugs(): string[] {
@@ -69,41 +68,30 @@ function addSlug(slug: string) {
   }
 }
 
-/** 从服务端加载某篇文章的评论 */
-async function loadCommentsFromServerForSlug(slug: string): Promise<BlogComment[] | null> {
+/** 从服务端加载所有评论 */
+export async function loadCommentsFromServer(): Promise<Record<string, BlogComment[]>> {
   try {
-    const res = await fetch(`/api/data/${getKey(slug)}`);
+    const res = await fetch("/api/data/blog_comments_all");
     const json = await res.json();
-    if (json.exists && Array.isArray(json.data)) {
-      return json.data as BlogComment[];
+    if (json.exists && json.data && typeof json.data === "object") {
+      return json.data as Record<string, BlogComment[]>;
     }
   } catch { /* 网络错误 */ }
-  return null;
+  return {};
 }
 
-// 写入序列化锁 —— 防止并发写入竞态
-const syncLocks = new Map<string, Promise<void>>();
-
-/** 同步某篇文章评论到服务端（带序列化锁，避免并发写入覆盖） */
+/** 同步某篇文章评论到服务端 */
 async function syncCommentsToServer(slug: string, comments: BlogComment[]) {
-  const strip = (ms: (BlogComment | BlogReply)[]): any[] =>
-    ms.map(({ showReplyForm, ...m }) => ({ ...m, replies: strip(m.replies) }));
-
-  const doSync = async () => {
-    try {
-      await fetch(`/api/data/${getKey(slug)}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ data: strip(comments) }),
-      });
-    } catch { /* 静默 */ }
-  };
-
-  // 序列化：每个 slug 的写入串行执行
-  const prev = syncLocks.get(slug) || Promise.resolve();
-  const next = prev.then(doSync, doSync);
-  syncLocks.set(slug, next);
-  return next;
+  try {
+    // 先获取服务端所有评论
+    const all = await loadCommentsFromServer();
+    all[slug] = comments;
+    await fetch("/api/data/blog_comments_all", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ data: all }),
+    });
+  } catch { /* 静默 */ }
 }
 
 // ========== 公开方法 ==========
@@ -111,7 +99,7 @@ async function syncCommentsToServer(slug: string, comments: BlogComment[]) {
 /** 加载评论（添加 UI 状态） */
 export function loadComments(slug: string): BlogComment[] {
   const raw = loadCommentsRaw(slug);
-  if (!Array.isArray(raw) || raw.length === 0) return [];
+  if (raw.length === 0) return [];
   const hydrate = (msgs: (BlogComment | BlogReply)[]): (BlogComment | BlogReply)[] =>
     msgs.map((m) => ({ ...m, showReplyForm: false, replies: hydrate(m.replies) as BlogReply[] }));
   return hydrate(raw) as BlogComment[];
@@ -125,51 +113,8 @@ export function saveComments(slug: string, comments: BlogComment[]) {
   if (comments.length > 0) {
     addSlug(slug);
   }
-  // 同步到服务端
+  // 异步同步到服务端
   syncCommentsToServer(slug, comments);
-}
-
-/**
- * 从服务端拉取该文章的最新评论，与本地双向合并：
- * - 服务端有、本地无 → 新增
- * - 本地有、服务端无 → 保留（本地尚未同步的新评论）
- * - 都存在 → 比较 id，取最新
- */
-export async function mergeCommentsFromServer(slug: string): Promise<BlogComment[]> {
-  const serverComments = await loadCommentsFromServerForSlug(slug);
-  if (!serverComments || serverComments.length === 0) {
-    // 服务端无数据，返回本地数据
-    return loadComments(slug);
-  }
-
-  const local = loadComments(slug);
-  const localMap = new Map<number, BlogComment>();
-  local.forEach((c) => localMap.set(c.id, c));
-
-  const serverMap = new Map<number, BlogComment>();
-  serverComments.forEach((c) => serverMap.set(c.id, c));
-
-  // 双向合并：以 id 为 key，服务端优先（覆盖点赞数等更新），本地补充服务端没有的
-  const merged = new Map<number, BlogComment>();
-
-  // 先处理所有服务端评论
-  for (const [id, sc] of serverMap) {
-    merged.set(id, sc);
-  }
-
-  // 补充本地有但服务端没有的评论（尚未同步的新评论）
-  for (const [id, lc] of localMap) {
-    if (!merged.has(id)) {
-      merged.set(id, lc);
-    }
-  }
-
-  const result = Array.from(merged.values()).sort((a, b) => b.id - a.id);
-
-  // 写回本地
-  saveComments(slug, result);
-
-  return result;
 }
 
 // ========== 工具函数 ==========

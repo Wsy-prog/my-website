@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Send, User, Clock, Heart, Reply, Trash2 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
@@ -56,28 +56,13 @@ function saveMessages(msgs: Message[]) {
   const data = strip(msgs);
   try {
     localStorage.setItem(GUESTBOOK_KEY, JSON.stringify(data));
-    // 同步到服务端（fire-and-forget）
+    // 同步到服务端
     fetch("/api/data/guestbook_messages", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ data }),
     }).catch(() => {});
   } catch { /* quota exceeded */ }
-}
-
-// 从服务端加载留言
-async function loadMessagesFromServer(): Promise<Message[]> {
-  try {
-    const res = await fetch("/api/data/guestbook_messages");
-    const json = await res.json();
-    if (json.exists && Array.isArray(json.data)) {
-      localStorage.setItem(GUESTBOOK_KEY, JSON.stringify(json.data));
-      const hydrate = (msgs: any[]): Message[] =>
-        msgs.map((m) => ({ ...m, showReplyForm: false, replies: hydrate(m.replies || []) }));
-      return hydrate(json.data);
-    }
-  } catch { /* 网络错误 */ }
-  return [];
 }
 
 // Helper: find a reply by id deep in the tree, update it
@@ -116,28 +101,33 @@ export default function GuestbookPage() {
   const [visitorCount, setVisitorCount] = useState(0);
   const [loaded, setLoaded] = useState(false);
 
-  // 首次加载：从服务端同步留言（权威数据源）
+  // 首次加载：从服务端同步留言（覆盖本地）
   useEffect(() => {
-    loadMessagesFromServer().then(serverMsgs => {
-      if (serverMsgs.length > 0) {
-        setMessages(serverMsgs);
-      } else if (localStorage.getItem(GUESTBOOK_KEY)) {
-        setMessages(loadMessages());
+    const sync = async () => {
+      try {
+        const res = await fetch("/api/data/guestbook_messages");
+        const json = await res.json();
+        if (json.exists && Array.isArray(json.data)) {
+          localStorage.setItem(GUESTBOOK_KEY, JSON.stringify(json.data));
+          const hydrate = (msgs: any[]): Message[] =>
+            msgs.map((m) => ({ ...m, showReplyForm: false, replies: hydrate(m.replies || []) }));
+          setMessages(hydrate(json.data));
+        } else if (localStorage.getItem(GUESTBOOK_KEY)) {
+          setMessages(loadMessages());
+        }
+      } catch {
+        if (localStorage.getItem(GUESTBOOK_KEY)) setMessages(loadMessages());
       }
       setLoaded(true);
-    });
+    };
+    sync();
   }, []);
 
-  // 留言变化时自动保存（防抖 1 秒）
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // 留言变化时自动保存（跳过首次加载）
   useEffect(() => {
     if (loaded) {
-      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-      saveTimerRef.current = setTimeout(() => {
-        saveMessages(messages);
-      }, 1000);
+      saveMessages(messages);
     }
-    return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
   }, [messages, loaded]);
 
 useEffect(() => {
@@ -277,11 +267,6 @@ useEffect(() => {
 
       {/* Messages */}
       <div className="space-y-4">
-        {messages.length === 0 ? (
-          <div className="text-center py-12 text-muted-foreground">
-            <p className="text-sm">还没有留言，来写下第一条吧 ✍️</p>
-          </div>
-        ) : (
         <AnimatePresence>
           {messages.map((msg, i) => (
             <motion.div
@@ -372,7 +357,6 @@ useEffect(() => {
             </motion.div>
           ))}
         </AnimatePresence>
-        )}
       </div>
     </div>
   );
