@@ -98,7 +98,7 @@ export default function GuestbookPage() {
   const { isAdmin } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [form, setForm] = useState({ name: "", content: "" });
-  const [visitorCount, setVisitorCount] = useState(0);
+  const [visitorCount, setVisitorCount] = useState<number | null>(null);
   const [loaded, setLoaded] = useState(false);
 
   // 首次加载：从服务端同步留言（覆盖本地）
@@ -244,7 +244,7 @@ useEffect(() => {
         <p className="text-muted-foreground">留下你的足迹，说点什么吧</p>
         <div className="inline-flex items-center gap-2 mt-4 px-4 py-2 rounded-full bg-primary/10 text-sm">
           <span>👀 已有</span>
-          <span className="font-bold text-primary">{visitorCount.toLocaleString()}</span>
+          <span className="font-bold text-primary">{visitorCount !== null ? visitorCount.toLocaleString() : "..."}</span>
           <span>位访客来过了</span>
         </div>
       </AnimatedSection>

@@ -64,9 +64,6 @@ export default function BlogPostPage() {
       found = blogPosts.find((p) => p.slug === slug) || null;
     }
     setPost(found ?? undefined);
-    // 加载评论
-    setComments(loadComments(slug));
-    setCommentsLoaded(true);
   }, [slug]);
 
   // 评论变化时自动保存
