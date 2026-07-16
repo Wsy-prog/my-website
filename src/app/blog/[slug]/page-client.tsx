@@ -384,7 +384,7 @@ function CommentSection({ slug, isAdmin }: { slug: string; isAdmin: boolean }) {
                 />
                 {comment.showReplyForm && (
                   <div className="mt-3">
-                    <BlogReplyForm onSubmit={(n, c) => addReply(comment.id, null, n, c)} parentName={comment.name} />
+                    <BlogReplyForm onSubmit={(n, c) => addReply(comment.id, null, n, c, comment.name)} parentName={comment.name} />
                   </div>
                 )}
               </div>
