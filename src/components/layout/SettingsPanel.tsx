@@ -768,6 +768,10 @@ function BackupSection() {
         }
       }
     } catch {}
+    // 从 API 拉取 site_defaults（仅存 DB 的数据）
+    fetch("/api/data/site_defaults").then(r => r.json()).then(json => {
+      if (json.exists && json.data) backup.site_defaults = json.data;
+    }).catch(() => {});
     backup._exported_at = new Date().toISOString();
     const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
@@ -780,20 +784,44 @@ function BackupSection() {
     setTimeout(() => setStatus(null), 2000);
   }
 
-  function importData() {
+	  function importData() {
     const input = document.createElement("input");
     input.type = "file";
     input.accept = ".json";
     input.onchange = (e) => {
       const file = (e.target as HTMLInputElement).files?.[0];
       if (!file) return;
+      if (!confirm("⚠️ 恢复备份将覆盖所有本地数据，确认继续？")) return;
       const reader = new FileReader();
-      reader.onload = () => {
+      reader.onload = async () => {
         try {
           const data = JSON.parse(reader.result as string);
+          // 简单格式校验
+          if (!data || typeof data !== "object" || Array.isArray(data)) {
+            setStatus("文件格式错误：无效的备份文件"); setTimeout(() => setStatus(null), 2000); return;
+          }
+          if (!data._exported_at && !data.blog_custom_posts && !data.guestbook_messages) {
+            setStatus("文件格式错误：不是有效的备份文件"); setTimeout(() => setStatus(null), 2000); return;
+          }
+
+          // 安全检查：只允许写入已知的 key
+          const allowedKeys = new Set([
+            "blog_custom_posts", "blog_custom_tags", "gallery_photos",
+            "gallery_deleted_defaults", "travel_all_markers", "travel_markers_version",
+            "music_tracks", "bg_assets", "bg_type", "bg_blur", "bg_opacity",
+            "bg_active_src", "bg_customized", "guestbook_messages", "guestbook_liked",
+            "guestbook_visitor_count", "guestbook_visited", "card_theme", "theme",
+            "scroll_animations_enabled", "blog_comment_liked", "blog_autosave_enabled",
+          ]);
+
           let count = 0;
           for (const [k, v] of Object.entries(data)) {
             if (k.startsWith("_")) continue;
+            if (k.startsWith("blog_comments_") && k !== "blog_comments_slugs" && k !== "blog_comments_all") {
+              // 允许评论数据写入
+            } else if (!allowedKeys.has(k)) {
+              continue; // 跳过未知 key
+            }
             if (typeof v === "string") {
               localStorage.setItem(k, v);
             } else {
@@ -801,7 +829,48 @@ function BackupSection() {
             }
             count++;
           }
-          setStatus(`已恢复 ${count} 项数据！刷新页面生效`);
+
+          // 同步到 API（所有需要写入 API 的 key）
+          const apiKeys = [
+            "blog_custom_posts", "gallery_photos", "travel_all_markers",
+            "music_tracks", "bg_assets", "guestbook_messages", "site_defaults",
+          ];
+          let apiOk = 0, apiFail = 0;
+          const token = localStorage.getItem("admin_token");
+          for (const k of apiKeys) {
+            if (data[k] !== undefined && token) {
+              try {
+                const res = await fetch(`/api/data/${k}`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                  body: JSON.stringify({ data: data[k] }),
+                });
+                if (res.ok) apiOk++; else apiFail++;
+              } catch { apiFail++; }
+            }
+          }
+          // 同步评论（blog_comments_{slug} 独立 key）
+          for (const [k, v] of Object.entries(data)) {
+            if (k.startsWith("blog_comments_") && k !== "blog_comments_slugs" && k !== "blog_comments_all" && token) {
+              try {
+                await fetch(`/api/data/${k}`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                  body: JSON.stringify({ data: v }),
+                });
+              } catch {}
+            }
+          }
+
+          if (apiFail === 0 && apiOk > 0) {
+            setStatus(`✅ 已恢复 ${count} 项数据，服务端同步成功！`);
+          } else if (apiFail > 0) {
+            setStatus(`已恢复 ${count} 项数据，但 ${apiFail} 项同步失败`);
+          } else if (!token) {
+            setStatus(`已恢复 ${count} 项数据（未登录，仅本地有效）`);
+          } else {
+            setStatus(`已恢复 ${count} 项数据`);
+          }
           setTimeout(() => setStatus(null), 3000);
         } catch {
           setStatus("文件格式错误");
