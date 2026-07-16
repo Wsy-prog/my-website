@@ -1,29 +1,6 @@
 const CLOUD_NAME = "ii40ztmn";
 const UPLOAD_PRESET = "my_website";
 
-/** 上传文件到 Cloudinary，返回可直接访问的 URL（用于 PDF/Word/ZIP 等） */
-export async function uploadFile(file: File): Promise<string> {
-  const form = new FormData();
-  form.append("file", file);
-  form.append("upload_preset", UPLOAD_PRESET);
-  // resource_type=raw 让 Cloudinary 按原生文件处理，返回直接下载链接
-  form.append("resource_type", "raw");
-
-  const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/raw/upload`, {
-    method: "POST",
-    body: form,
-  });
-
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error((err as any).error?.message || "上传失败");
-  }
-
-  const data = await res.json();
-  // secure_url 是可直接访问的 raw 文件链接
-  return data.secure_url as string;
-}
-
 /** 上传任意文件到 Cloudinary（图片/音频/视频等），返回 URL */
 export async function uploadToCloudinary(file: File): Promise<string> {
   const form = new FormData();

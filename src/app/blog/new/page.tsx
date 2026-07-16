@@ -6,7 +6,7 @@ import { motion } from "framer-motion";
 import {
   Bold, Italic, Underline, List, ListOrdered,
   ImageIcon, Smile, ArrowLeft, Send, Quote, Trash2, Undo2, Redo2,
-  Images, Code, Link, Save, Paperclip,
+  Images, Code, Link, Save,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,7 +16,7 @@ import { saveCustomPost, loadCustomPosts, deleteCustomPost } from "@/lib/blog-st
 import { useAuth } from "@/lib/auth-context";
 import type { BlogPost } from "@/data/blog-posts";
 import { getAllMarkers } from "@/lib/travel-store";
-import { compressAndUpload, uploadFile } from "@/lib/cloudinary";
+import { compressAndUpload } from "@/lib/cloudinary";
 import type { Photo } from "@/data/photos";
 
 const categories = [
@@ -52,7 +52,6 @@ function NewBlogPageInner() {
 
   const editorRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const fileAttachRef = useRef<HTMLInputElement>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
 
   const [title, setTitle] = useState("");
@@ -284,35 +283,6 @@ function NewBlogPageInner() {
   // 手动保存（仍保留供快捷键 Ctrl+Shift+S 等调用，但 UI 按钮已移除）
   function handleManualSave() {
     handleSaveDraft();
-  }
-
-  // 插入文件（Word/PDF/ZIP 等）
-  async function attachFile() {
-    const file = fileAttachRef.current?.files?.[0];
-    if (!file) return;
-    try {
-      const url = await uploadFile(file);
-      const el = editorRef.current;
-      if (el) {
-        el.focus();
-        const fileName = file.name;
-        const linkHtml = `<a href="${url}" class="text-primary underline" target="_blank" rel="noopener noreferrer">📎 ${fileName}</a>`;
-        document.execCommand("insertHTML", false, linkHtml);
-        // 在链接后加换行
-        const br = document.createElement("br");
-        const sel = window.getSelection();
-        if (sel && sel.rangeCount > 0) {
-          const range = sel.getRangeAt(0);
-          const br2 = document.createElement("br");
-          range.insertNode(br2);
-          range.setStartAfter(br2);
-          range.collapse(true);
-          sel.removeAllRanges();
-          sel.addRange(range);
-        }
-        fileAttachRef.current!.value = "";
-      }
-    } catch { /* 上传静默 */ }
   }
 
   // 执行编辑命令
@@ -841,10 +811,6 @@ function NewBlogPageInner() {
           <span className="w-px h-5 bg-border mx-0.5" />
           <button onClick={() => fileInputRef.current?.click()} className="p-1.5 rounded hover:bg-accent transition-colors" title="插入图片"><ImageIcon className="h-4 w-4" /></button>
           <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={insertImage} />
-          <button onClick={() => fileAttachRef.current?.click()} className="p-1.5 rounded hover:bg-accent transition-colors" title="上传文件(Word/PDF/ZIP)">
-            <Paperclip className="h-4 w-4" />
-          </button>
-          <input ref={fileAttachRef} type="file" className="hidden" onChange={attachFile} />
           <div className="relative">
             <button onClick={() => setShowEmoji(!showEmoji)} className={`p-1.5 rounded transition-colors ${showEmoji ? "bg-accent" : "hover:bg-accent"}`} title="表情">
               <Smile className="h-4 w-4" />
