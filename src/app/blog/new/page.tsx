@@ -16,7 +16,7 @@ import { saveCustomPost, loadCustomPosts, deleteCustomPost } from "@/lib/blog-st
 import { useAuth } from "@/lib/auth-context";
 import type { BlogPost } from "@/data/blog-posts";
 import { getAllMarkers } from "@/lib/travel-store";
-import { compressAndUpload, uploadToCloudinary } from "@/lib/cloudinary";
+import { compressAndUpload, uploadFile } from "@/lib/cloudinary";
 import type { Photo } from "@/data/photos";
 
 const categories = [
@@ -291,7 +291,7 @@ function NewBlogPageInner() {
     const file = fileAttachRef.current?.files?.[0];
     if (!file) return;
     try {
-      const url = await uploadToCloudinary(file);
+      const url = await uploadFile(file);
       const el = editorRef.current;
       if (el) {
         el.focus();
