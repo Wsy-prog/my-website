@@ -199,7 +199,8 @@ export default function BlogPostPage() {
                   [&_ol]:list-decimal [&_ol]:pl-6 [&_ol]:mb-4 [&_li]:mb-1
                   [&_blockquote]:border-l-4 [&_blockquote]:border-primary/40 [&_blockquote]:pl-4 [&_blockquote]:py-2 [&_blockquote]:my-4 [&_blockquote]:italic [&_blockquote]:text-muted-foreground [&_blockquote]:bg-muted/30 [&_blockquote]:rounded-r-lg
                   [&_img]:rounded-xl [&_img]:my-4 [&_img]:max-w-full
-                  [&_strong]:font-semibold"
+                  [&_strong]:font-semibold
+                  [&_a]:text-primary [&_a]:underline [&_a]:cursor-pointer"
               />
             ) : (
               // Markdown 内容（旧文章兼容）
