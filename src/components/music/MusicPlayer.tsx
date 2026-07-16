@@ -21,11 +21,20 @@ const SEED_TRACKS: Track[] = [
 const STORAGE_KEY = "music_tracks";
 
 // ========== API 同步 ==========
+function getToken(): string | null {
+  try { return typeof window !== "undefined" ? localStorage.getItem("admin_token") : null; } catch { return null; }
+}
+
 async function syncToApi(tracks: Track[]) {
   try {
+    const token = getToken();
+    if (!token) return; // 未登录不同步
     await fetch("/api/data/music_tracks", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
       body: JSON.stringify({ data: tracks }),
     });
   } catch { /* 静默 */ }
