@@ -8,6 +8,7 @@ export interface BlogReply {
   date: string;
   replies: BlogReply[];
   showReplyForm: boolean;
+  parentName?: string;
 }
 
 export interface BlogComment {

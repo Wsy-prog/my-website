@@ -301,11 +301,12 @@ function CommentSection({ slug, isAdmin }: { slug: string; isAdmin: boolean }) {
     }
   };
 
-  const addReply = (parentId: number, parentReplyId: number | null, replyName: string, replyContent: string) => {
+  const addReply = (parentId: number, parentReplyId: number | null, replyName: string, replyContent: string, parentReplyName?: string) => {
     if (!replyName.trim() || !replyContent.trim()) return;
     const reply: BlogReply = {
-      id: Date.now(), name: replyName, content: replyContent,
+      id: Date.now() + Math.floor(Math.random() * 10000), name: replyName, content: replyContent,
       date: new Date().toISOString().split("T")[0], replies: [], showReplyForm: false,
+      parentName: parentReplyName,
     };
     if (parentReplyId === null) {
       setComments(comments.map((c) =>
@@ -378,7 +379,7 @@ function CommentSection({ slug, isAdmin }: { slug: string; isAdmin: boolean }) {
                 <BlogReplyList
                   replies={comment.replies} parentMsgId={comment.id}
                   onToggleReply={(rid) => toggleReplyForm(rid, false)}
-                  onAddReply={(pid, n, c) => addReply(comment.id, pid, n, c)}
+                  onAddReply={(pid, n, c, pn) => addReply(comment.id, pid, n, c, pn)}
                   deleteTarget={deleteTarget} setDeleteTarget={setDeleteTarget} onDeleteConfirm={handleDeleteComment}
                 />
                 {comment.showReplyForm && (
@@ -397,7 +398,7 @@ function CommentSection({ slug, isAdmin }: { slug: string; isAdmin: boolean }) {
 
 function BlogReplyList({ replies, parentMsgId, onToggleReply, onAddReply, deleteTarget, setDeleteTarget, onDeleteConfirm }: {
   replies: BlogReply[]; parentMsgId: number; onToggleReply: (id: number) => void;
-  onAddReply: (parentReplyId: number, name: string, content: string) => void;
+  onAddReply: (parentReplyId: number, name: string, content: string, parentName?: string) => void;
   deleteTarget: number | null; setDeleteTarget: (id: number | null) => void; onDeleteConfirm: (id: number) => void;
 }) {
   const { isAdmin } = useAuth();
@@ -408,8 +409,8 @@ function BlogReplyList({ replies, parentMsgId, onToggleReply, onAddReply, delete
         <div key={reply.id} className="ml-4 pl-3 border-l-2 border-border">
           <div className="text-sm">
             <span className="font-medium text-primary">{reply.name}</span>
-            <span className="text-muted-foreground mx-1">→</span>
-            <span className="font-medium">...</span>
+            <span className="text-muted-foreground mx-1">回复</span>
+            <span className="font-medium">{reply.parentName || "..."}</span>
             <span className="text-muted-foreground">：{reply.content}</span>
             <span className="text-xs text-muted-foreground ml-2">{reply.date}</span>
           </div>
@@ -435,7 +436,7 @@ function BlogReplyList({ replies, parentMsgId, onToggleReply, onAddReply, delete
           />
           {reply.showReplyForm && (
             <div className="mt-2">
-              <BlogReplyForm onSubmit={(n, c) => onAddReply(reply.id, n, c)} parentName={reply.name} />
+              <BlogReplyForm onSubmit={(n, c) => onAddReply(reply.id, n, c, reply.name)} parentName={reply.name} />
             </div>
           )}
         </div>
@@ -444,10 +445,10 @@ function BlogReplyList({ replies, parentMsgId, onToggleReply, onAddReply, delete
   );
 }
 
-function BlogReplyForm({ onSubmit, parentName }: { onSubmit: (name: string, content: string) => void; parentName: string }) {
+function BlogReplyForm({ onSubmit, parentName }: { onSubmit: (name: string, content: string, parentName?: string) => void; parentName: string }) {
   const [name, setName] = useState("");
   const [content, setContent] = useState("");
-  const handleSubmit = (e: React.FormEvent) => { e.preventDefault(); if (!name.trim() || !content.trim()) return; onSubmit(name, content); setName(""); setContent(""); };
+  const handleSubmit = (e: React.FormEvent) => { e.preventDefault(); if (!name.trim() || !content.trim()) return; onSubmit(name, content, parentName); setName(""); setContent(""); };
   return (
     <form onSubmit={handleSubmit} className="flex gap-2 items-start">
       <Input placeholder="昵称" value={name} onChange={(e) => setName(e.target.value)} required className="rounded-xl w-24 text-sm h-8" maxLength={20} />
