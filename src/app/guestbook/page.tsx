@@ -131,29 +131,48 @@ export default function GuestbookPage() {
   }, [messages, loaded]);
 
 useEffect(() => {
-  // 从服务端读取访客计数
+  // 从服务端读取访客计数，如果首次来访则 +1
   const syncVisitorCount = async () => {
     try {
       const res = await fetch("/api/data/guestbook_visitor_count");
       const json = await res.json();
       if (json.exists && typeof json.data === "number") {
-        setVisitorCount(json.data);
+        const serverCount = json.data as number;
+
+        // 检查是否已来访过
+        const thisVisit = localStorage.getItem("guestbook_visited");
+        if (!thisVisit) {
+          // 首次来访：计数 +1
+          localStorage.setItem("guestbook_visited", "1");
+          const newCount = serverCount + 1;
+          // 异步 POST 新计数
+          fetch("/api/data/guestbook_visitor_count", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ data: newCount }),
+          }).catch(() => {});
+          setVisitorCount(newCount);
+        } else {
+          setVisitorCount(serverCount);
+        }
+      } else {
+        // 数据库无记录，首次来访
+        const thisVisit = localStorage.getItem("guestbook_visited");
+        if (!thisVisit) {
+          localStorage.setItem("guestbook_visited", "1");
+          fetch("/api/data/guestbook_visitor_count", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ data: 1 }),
+          }).catch(() => {});
+          setVisitorCount(1);
+        } else {
+          setVisitorCount(0);
+        }
       }
     } catch {}
   };
   syncVisitorCount();
-
-  // 本地标记 + 异步上报 +1
-  const thisVisit = localStorage.getItem("guestbook_visited");
-  if (!thisVisit) {
-    localStorage.setItem("guestbook_visited", "1");
-    // 异步上报计数 +1
-    fetch("/api/data/guestbook_visitor_count", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ data: 1 }),
-    }).catch(() => {});
-  }
 }, []);
   const [likedIds, setLikedIdsState] = useState<number[]>([]);
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
