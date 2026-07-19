@@ -6,7 +6,7 @@ import { motion } from "framer-motion";
 import {
   Bold, Italic, Underline, List, ListOrdered,
   ImageIcon, Smile, ArrowLeft, Send, Quote, Trash2, Undo2, Redo2,
-  Images, Code, Link, Save,
+  Images, Code, Link, Save, Upload,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,6 +17,7 @@ import { useAuth } from "@/lib/auth-context";
 import type { BlogPost } from "@/data/blog-posts";
 import { getAllMarkers } from "@/lib/travel-store";
 import { compressAndUpload } from "@/lib/cloudinary";
+import { ImagePicker } from "@/components/shared/ImagePicker";
 import type { Photo } from "@/data/photos";
 
 const categories = [
@@ -129,6 +130,10 @@ function NewBlogPageInner() {
   // 已有图片弹窗
   const [showExistingImages, setShowExistingImages] = useState(false);
   const [existingImages, setExistingImages] = useState<string[]>([]);
+
+  // ImagePicker 弹窗
+  const [showCoverImagePicker, setShowCoverImagePicker] = useState(false);
+  const [showInlineImagePicker, setShowInlineImagePicker] = useState(false);
 
   // 收集所有已有的图片：摄影画廊照片 + 文章封面 + 背景图片
   useEffect(() => {
@@ -341,6 +346,30 @@ function NewBlogPageInner() {
     if (el) {
       el.focus();
       document.execCommand("insertText", false, emoji);
+    }
+  }
+
+  // 插入图片 URL 到编辑器
+  function insertImageUrl(url: string, alt?: string) {
+    const el = editorRef.current;
+    if (!el) return;
+    el.focus();
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0) {
+      const range = sel.getRangeAt(0);
+      const img = document.createElement("img");
+      img.src = url;
+      img.alt = alt || "";
+      img.className = "rounded-xl my-4 max-w-full";
+      img.style.maxHeight = "400px";
+      range.insertNode(img);
+      const br = document.createElement("br");
+      range.setStartAfter(img);
+      range.insertNode(br);
+      range.setStartAfter(br);
+      range.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(range);
     }
   }
 
@@ -666,30 +695,7 @@ function NewBlogPageInner() {
                 <span>本地上传</span>
               </button>
               <button
-                onClick={() => {
-                  const urlSet = new Set<string>();
-                  // 先从 localStorage 收集
-                  import("@/data/photos").then(mod => {
-                    mod.loadPhotos().forEach((p: Photo) => { if (p.src) urlSet.add(p.src); });
-                  }).finally(() => {
-                    try {
-                      const assets = JSON.parse(localStorage.getItem("bg_assets") || "[]") as { src: string; type: string }[];
-                      assets.forEach((a) => { if (a.type === "image" && a.src) urlSet.add(a.src); });
-                    } catch {}
-                    const posts = loadCustomPosts();
-                    posts.forEach((p) => { if (p.coverImage) urlSet.add(p.coverImage); });
-                    setExistingImages(Array.from(urlSet));
-                  });
-                  // 再尝试从服务端拉照片
-                  import("@/data/photos").then(mod => mod.loadPhotosFromServer()).then(serverPhotos => {
-                    if (serverPhotos && serverPhotos.length > 0) {
-                      localStorage.setItem("gallery_photos", JSON.stringify(serverPhotos));
-                      serverPhotos.forEach((p: Photo) => { if (p.src) urlSet.add(p.src); });
-                      setExistingImages(Array.from(urlSet));
-                    }
-                  });
-                  setShowExistingImages(true);
-                }}
+                onClick={() => setShowCoverImagePicker(true)}
                 className="flex-1 py-8 rounded-xl border-2 border-dashed border-border hover:border-primary transition-colors text-muted-foreground hover:text-primary text-sm flex flex-col items-center gap-2"
               >
                 <Images className="h-6 w-6" />
@@ -809,7 +815,8 @@ function NewBlogPageInner() {
           <button onClick={insertCodeBlock} className="p-1.5 rounded hover:bg-accent transition-colors" title="插入代码"><Code className="h-4 w-4" /></button>
           <button onClick={openLinkDialog} className="p-1.5 rounded hover:bg-accent transition-colors" title="插入链接"><Link className="h-4 w-4" /></button>
           <span className="w-px h-5 bg-border mx-0.5" />
-          <button onClick={() => fileInputRef.current?.click()} className="p-1.5 rounded hover:bg-accent transition-colors" title="插入图片"><ImageIcon className="h-4 w-4" /></button>
+          <button onClick={() => fileInputRef.current?.click()} className="p-1.5 rounded hover:bg-accent transition-colors" title="本地上传图片"><Upload className="h-4 w-4" /></button>
+          <button onClick={() => setShowInlineImagePicker(true)} className="p-1.5 rounded hover:bg-accent transition-colors" title="已有图片"><ImageIcon className="h-4 w-4" /></button>
           <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={insertImage} />
           <div className="relative">
             <button onClick={() => setShowEmoji(!showEmoji)} className={`p-1.5 rounded transition-colors ${showEmoji ? "bg-accent" : "hover:bg-accent"}`} title="表情">
@@ -941,28 +948,12 @@ function NewBlogPageInner() {
           }}
         />
 
-        {/* 已有图片选择弹窗 */}
-        <Dialog open={showExistingImages} onOpenChange={setShowExistingImages}>
-          <DialogContent className="sm:max-w-2xl max-h-[80vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>选择已有图片作为封面</DialogTitle>
-            </DialogHeader>
-            <div className="grid grid-cols-3 gap-3 mt-2">
-              {existingImages.map((src, i) => (
-                <button
-                  key={i}
-                  onClick={() => { setCoverImage(src); setShowExistingImages(false); }}
-                  className="group relative rounded-xl overflow-hidden border-2 border-border hover:border-primary transition-all hover:scale-[1.02]"
-                >
-                  <img src={src} alt="" className="w-full h-24 object-cover" loading="lazy" />
-                </button>
-              ))}
-            </div>
-            {existingImages.length === 0 && (
-              <p className="text-center text-sm text-muted-foreground py-8">暂无已有图片</p>
-            )}
-          </DialogContent>
-        </Dialog>
+        {/* 已有图片选择 — 封面 */}
+        <ImagePicker open={showCoverImagePicker} onOpenChange={setShowCoverImagePicker}
+          onSelect={(url) => setCoverImage(url)} title="选择已有图片作为封面" />
+        {/* 已有图片选择 — 正文 */}
+        <ImagePicker open={showInlineImagePicker} onOpenChange={setShowInlineImagePicker}
+          onSelect={(url) => insertImageUrl(url)} title="选择已有图片插入正文" />
 
         {/* 插入链接弹窗 */}
         <Dialog open={showLinkDialog} onOpenChange={setShowLinkDialog}>
