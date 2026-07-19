@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { ensureDB, loadData, saveData } from "@/lib/db";
+import { ensureDB, saveData } from "@/lib/db";
 
 export async function POST(request: Request) {
   try {
@@ -31,6 +31,7 @@ export async function POST(request: Request) {
 
 async function loadContacts(): Promise<any[]> {
   try {
+    const { loadData } = await import("@/lib/db");
     const result = await loadData<any[]>("contact_messages");
     return result?.data || [];
   } catch {
