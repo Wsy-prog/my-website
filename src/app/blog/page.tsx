@@ -107,9 +107,11 @@ function BlogPageInner() {
     const posts = getAllPosts(blogPosts);
     setAllPosts(posts);
     setDraftCount(posts.filter(p => p.draft).length);
-    // 从 API 拉取最新数据，合并静态文章
+    // 从 API 拉取最新数据，合并静态文章（仅成功时覆盖，避免 API 失败清空自定义文章）
     import("@/lib/blog-store").then(mod => mod.loadCustomPostsServer()).then(serverPosts => {
-      setAllPosts([...serverPosts, ...blogPosts]);
+      if (serverPosts.length > 0) {
+        setAllPosts([...serverPosts, ...blogPosts]);
+      }
       setDraftCount(serverPosts.filter(p => p.draft).length);
     });
   }, [pathname]);

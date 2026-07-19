@@ -13,6 +13,9 @@ import { useCardTheme } from "@/lib/theme-context";
 import { useAuth } from "@/lib/auth-context";
 import { syncSiteDefaults } from "@/lib/site-defaults";
 import { compressAndUpload, uploadToCloudinary } from "@/lib/cloudinary";
+import RockerSwitch from "@/components/shared/RockerSwitch";
+import { ImagePicker } from "@/components/shared/ImagePicker";
+import { loadClickWordsSettings, saveClickWordsSettings, DEFAULT_SETTINGS, COLOR_PRESETS } from "@/lib/click-words-store";
 
 type BgType = "aurora" | "image" | "video" | "none";
 
@@ -142,6 +145,7 @@ export function SettingsPanel() {
   const [renameId, setRenameId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [bgImgPickerOpen, setBgImgPickerOpen] = useState(false);
   const imgFileRef = useRef<HTMLInputElement>(null);
   const videoFileRef = useRef<HTMLInputElement>(null);
   const videoUrlRef = useRef<HTMLInputElement>(null);
@@ -275,16 +279,7 @@ export function SettingsPanel() {
         {/* 背景专注模式 */}
         <div className="flex items-center gap-2">
           <span className="text-sm font-semibold text-muted-foreground uppercase tracking-wide flex-1">👁️ 背景专注</span>
-          <button
-            onClick={toggleBgOnly}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
-              bgOnly
-                ? "bg-gradient-to-r from-purple-500 via-pink-400 to-cyan-400 text-white border-transparent shadow-lg shadow-purple-500/25"
-                : "border-border hover:bg-accent"
-            }`}
-          >
-            {bgOnly ? "已开启" : "开启"}
-          </button>
+          <RockerSwitch checked={bgOnly} onChange={toggleBgOnly} leftLabel="开" rightLabel="关" />
         </div>
 
         {/* 一键应用博主同款 */}
@@ -464,12 +459,22 @@ export function SettingsPanel() {
                     <ImageIcon className="h-3.5 w-3.5" /> 导入本地图片
                   </button>
                   {/* 从已有图片导入 */}
-                  <ImportExistingImage assets={assets} onImport={(url) => {
-                    const name = url.split("/").pop()?.replace(/\.[^.]+$/, "") || "已导入壁纸";
-                    const asset: BgAsset = { id: Date.now().toString(36), name, type: "image", src: url };
-                    const updated = [...assets, asset];
-                    setAssets(updated); saveAssets(updated);
-                  }} />
+                  <button
+                    onClick={() => setBgImgPickerOpen(true)}
+                    className="w-full py-2 rounded-lg border-2 border-dashed border-border hover:border-primary transition-colors text-xs text-muted-foreground hover:text-primary text-center flex items-center justify-center gap-1"
+                  >
+                    <ImageIcon className="h-3.5 w-3.5" /> 从已有图片选择
+                  </button>
+                  <ImagePicker
+                    open={bgImgPickerOpen}
+                    onOpenChange={setBgImgPickerOpen}
+                    onSelect={(url) => {
+                      const name = url.split("/").pop()?.replace(/\.[^.]+$/, "") || "已导入壁纸";
+                      const asset: BgAsset = { id: Date.now().toString(36), name, type: "image", src: url };
+                      const updated = [...assets, asset];
+                      setAssets(updated); saveAssets(updated);
+                    }}
+                  />
                   <button onClick={() => videoFileRef.current?.click()}
                     className="w-full py-2 rounded-lg border-2 border-dashed border-border hover:border-primary transition-colors text-xs text-muted-foreground hover:text-primary text-center flex items-center justify-center gap-1">
                     <Video className="h-3.5 w-3.5" /> 导入本地视频
@@ -525,15 +530,22 @@ export function SettingsPanel() {
 
         <Separator />
 
+        {/* ===== 点击字体（管理员） ===== */}
+        {isAdmin && (
+          <section>
+            <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide mb-3">🖱️ 点击字体</h3>
+            <ClickWordsSettingsDialog />
+          </section>
+        )}
+
+        <Separator />
+
         {/* ===== 数据备份（管理员） ===== */}
         {isAdmin && (
-          <>
-            <Separator />
-            <section>
-              <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide mb-3">💾 数据备份</h3>
-              <BackupSection />
-            </section>
-          </>
+          <section>
+            <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide mb-3">💾 数据备份</h3>
+            <BackupSection />
+          </section>
         )}
 
         {/* ===== 管理员登录 ===== */}
@@ -578,101 +590,21 @@ function MusicControl() {
   );
 }
 
-function ImportExistingImage({ assets, onImport }: { assets: BgAsset[]; onImport: (url: string) => void }) {
-  const [open, setOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [galleryPhotos, setGalleryPhotos] = useState<{ src: string; title?: string }[]>([]);
-
-  // 收集所有可用的图片 URL：Cloudinary 已管理壁纸 + 图库照片 + 默认壁纸
-  useEffect(() => {
-    if (!open) return;
-    setLoading(true);
-    // 先从 localStorage 获取图库照片
-    const urls = new Set<string>();
-    try {
-      const photos = JSON.parse(localStorage.getItem("gallery_photos") || "[]");
-      for (const p of photos) {
-        if (p.src && typeof p.src === "string") urls.add(p.src);
-      }
-    } catch {}
-    // 博客文章中的封面图片
-    try {
-      const posts = JSON.parse(localStorage.getItem("blog_custom_posts") || "[]");
-      for (const p of posts) {
-        if (p.coverImage && typeof p.coverImage === "string") urls.add(p.coverImage);
-        // 博客正文中插入的图片
-        if (p.content && typeof p.content === "string") {
-          const imgRegex = /<img[^>]+src="([^"]+)"/g;
-          let match;
-          while ((match = imgRegex.exec(p.content)) !== null) {
-            if (match[1]) urls.add(match[1]);
-          }
-        }
-      }
-    } catch {}
-    // 已管理壁纸中的 Cloudinary URL
-    for (const a of assets) {
-      if (a.type === "image" && a.src && (a.src.includes("cloudinary") || a.src.includes("res.cloudinary"))) {
-        urls.add(a.src);
-      }
-    }
-    // 默认壁纸
-    if (!urls.has("/images/bg.jpg")) urls.add("/images/bg.jpg");
-
-    const photos = Array.from(urls).map(src => {
-      const name = src.split("/").pop()?.replace(/\.[^.]+$/, "") || "";
-      return { src, title: decodeURIComponent(name) };
-    });
-    setGalleryPhotos(photos);
-    setLoading(false);
-  }, [open, assets]);
-
-  return (
-    <>
-      <button
-        onClick={() => setOpen(true)}
-        className="w-full py-2 rounded-lg border-2 border-dashed border-border hover:border-primary transition-colors text-xs text-muted-foreground hover:text-primary text-center flex items-center justify-center gap-1"
-      >
-        <ImageIcon className="h-3.5 w-3.5" /> 从已有图片选择
-      </button>
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>选择已有图片</DialogTitle>
-          </DialogHeader>
-          <div className="max-h-64 overflow-y-auto">
-            {loading ? (
-              <p className="text-xs text-muted-foreground text-center py-8">加载中...</p>
-            ) : galleryPhotos.length === 0 ? (
-              <p className="text-xs text-muted-foreground text-center py-8">暂无可用图片，请先上传壁纸或照片</p>
-            ) : (
-              <div className="grid grid-cols-3 gap-2">
-                {galleryPhotos.map((photo) => (
-                  <button
-                    key={photo.src}
-                    onClick={() => { onImport(photo.src); setOpen(false); }}
-                    className="rounded-lg border border-border overflow-hidden hover:border-primary transition-colors group"
-                  >
-                    <img src={photo.src} className="aspect-video object-cover w-full" />
-                    <p className="text-[10px] px-1.5 py-1 truncate text-muted-foreground group-hover:text-foreground">{photo.title || "图片"}</p>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
-    </>
-  );
-}
-
 function CardThemeToggle() {
   const { cardTheme, setCardTheme } = useCardTheme();
   const items: ["glass" | "clean", string][] = [["glass", "🪟 毛玻璃"], ["clean", "📄 简洁白底"]];
   return (
     <div className="grid grid-cols-2 gap-2">
       {items.map(([val, label]) => (
-        <button key={val} onClick={() => setCardTheme(val)} className={`px-2 py-1.5 rounded-md text-xs border transition-colors ${cardTheme === val ? "bg-primary text-primary-foreground border-primary" : "border-border hover:bg-accent"}`}>
+        <button
+          key={val}
+          onClick={() => setCardTheme(val)}
+          className={`btn-shimmer-hover px-2 py-1.5 rounded-md text-xs border transition-colors ${
+            cardTheme === val
+              ? "bg-primary text-primary-foreground border-primary"
+              : "border-border hover:bg-accent"
+          }`}
+        >
           {label}
         </button>
       ))}
@@ -1071,6 +1003,161 @@ function SiteDefaultsDialog({ settings }: { settings: BgSettings }) {
               </Button>
             </div>
             <p className="text-[10px] text-muted-foreground text-center">「设为默认」新访客看到此外观 | 「切换到默认」你立即应用</p>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+function ClickWordsSettingsDialog() {
+  const [open, setOpen] = useState(false);
+  const [settings, setSettings] = useState(() => loadClickWordsSettings());
+  const [saved, setSaved] = useState(false);
+
+  function addWord() {
+    setSettings((s) => ({ ...s, words: [...s.words, ""] }));
+    setSaved(false);
+  }
+
+  function removeWord(i: number) {
+    setSettings((s) => ({ ...s, words: s.words.filter((_, idx) => idx !== i) }));
+    setSaved(false);
+  }
+
+  function updateWord(i: number, val: string) {
+    setSettings((s) => ({
+      ...s,
+      words: s.words.map((w, idx) => (idx === i ? val : w)),
+    }));
+    setSaved(false);
+  }
+
+  function handleSave() {
+    const cleaned = { ...settings, words: settings.words.map((w) => w.trim()).filter(Boolean) };
+    if (cleaned.words.length === 0) cleaned.words = [...DEFAULT_SETTINGS.words];
+    saveClickWordsSettings(cleaned);
+    setSettings(cleaned);
+    setSaved(true);
+    window.dispatchEvent(new Event("click-words-settings-changed"));
+  }
+
+  // sync when dialog opens
+  const handleOpenChange = (v: boolean) => {
+    setOpen(v);
+    if (v) {
+      setSettings(loadClickWordsSettings());
+      setSaved(false);
+    }
+  };
+
+  return (
+    <div className="space-y-2">
+      <Dialog open={open} onOpenChange={handleOpenChange}>
+        <DialogTrigger className="w-full px-2 py-1.5 rounded-md text-xs border border-border hover:bg-accent transition-colors text-left">
+          🖱️ 点击文字设置
+        </DialogTrigger>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>🖱️ 点击字体设置</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 mt-2">
+            {/* Word list */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-xs font-medium">文字内容（依次出现）</label>
+                <button
+                  onClick={addWord}
+                  className="text-xs text-primary hover:underline"
+                >
+                  + 添加
+                </button>
+              </div>
+              <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                {settings.words.map((w, i) => (
+                  <div key={i} className="flex items-center gap-1.5">
+                    <Input
+                      value={w}
+                      onChange={(e) => updateWord(i, e.target.value)}
+                      placeholder={`第 ${i + 1} 个词`}
+                      className="h-8 text-xs rounded-lg flex-1"
+                    />
+                    {settings.words.length > 1 && (
+                      <button
+                        onClick={() => removeWord(i)}
+                        className="shrink-0 w-6 h-6 rounded-md text-[10px] text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                        title="删除"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+              {settings.words.length === 0 && (
+                <p className="text-[10px] text-muted-foreground text-center py-2">至少需要一个词</p>
+              )}
+            </div>
+
+            {/* Duration */}
+            <div>
+              <label className="text-xs font-medium block mb-1">
+                停留时间：{settings.duration}ms（{(settings.duration / 1000).toFixed(1)}秒）
+              </label>
+              <input
+                type="range"
+                min={200}
+                max={5000}
+                step={100}
+                value={settings.duration}
+                onChange={(e) => {
+                  setSettings((s) => ({ ...s, duration: Number(e.target.value) }));
+                  setSaved(false);
+                }}
+                className="w-full accent-primary"
+              />
+              <div className="flex justify-between text-[10px] text-muted-foreground">
+                <span>0.2s</span>
+                <span>5s</span>
+              </div>
+            </div>
+
+            {/* Color */}
+            <div>
+              <label className="text-xs font-medium block mb-2">字体颜色</label>
+              <div className="grid grid-cols-3 gap-1.5">
+                {COLOR_PRESETS.map((preset) => (
+                  <button
+                    key={preset.value}
+                    onClick={() => {
+                      setSettings((s) => ({ ...s, color: preset.value }));
+                      setSaved(false);
+                    }}
+                    className={`h-9 rounded-lg text-[10px] font-medium transition-all border-2 ${
+                      settings.color === preset.value
+                        ? "border-primary scale-[1.03] shadow-sm"
+                        : "border-transparent hover:border-border"
+                    }`}
+                    style={{ background: preset.value }}
+                    title={preset.label}
+                  >
+                    <span className="sr-only">{preset.label}</span>
+                  </button>
+                ))}
+              </div>
+              <p className="text-[10px] text-muted-foreground mt-1.5 text-center">
+                {COLOR_PRESETS.find((p) => p.value === settings.color)?.label || "紫→粉→青"}
+              </p>
+            </div>
+
+            {/* Save */}
+            <Button
+              onClick={handleSave}
+              className="w-full rounded-lg text-xs"
+              disabled={saved}
+            >
+              {saved ? "✅ 已保存" : "💾 保存设置"}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

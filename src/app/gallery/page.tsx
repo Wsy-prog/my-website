@@ -16,6 +16,7 @@ import { useAuth } from "@/lib/auth-context";
 import { getAllMarkers } from "@/lib/travel-store";
 import { loadPhotos, savePhotos, type Photo } from "@/data/photos";
 import { compressAndUpload } from "@/lib/cloudinary";
+import { CardContainer, CardBody, CardItem } from "@/components/ui/3d-card";
 
 const categories = ["全部", "风光", "人像", "视频", "运动", "生活"];
 
@@ -58,9 +59,11 @@ function GalleryPageInner() {
   // 加载照片
   useEffect(() => {
     setPhotos(loadPhotos());
-    // 从 API 拉取最新数据（完成后才允许自动保存，避免覆盖）
-    import("@/data/photos").then(mod => mod.loadPhotosFromServer()).then(photos => {
-      setPhotos(photos);
+    // 从 API 拉取最新数据（仅在成功返回数据时才覆盖，避免 API 失败清空本地数据）
+    import("@/data/photos").then(mod => mod.loadPhotosFromServer()).then(serverPhotos => {
+      if (serverPhotos.length > 0) {
+        setPhotos(serverPhotos);
+      }
       setLoaded(true);
     });
   }, []);
@@ -503,38 +506,50 @@ function GalleryPageInner() {
                   animate={{ opacity: 1, scale: 1 }}
                   exit={animEnabled ? { opacity: 0, scale: 0.9 } : undefined}
                   transition={animEnabled ? { duration: 0.4, delay: i * 0.05 } : { duration: 0 }}
-                  className="break-inside-avoid rounded-xl overflow-hidden cursor-pointer group relative"
-                  onClick={() => setLightboxIndex(i)}
+                  className="break-inside-avoid"
                 >
-                  {/* Edit button */}
-                  {isAdmin && (
-                    <button
-                      className="absolute bottom-2 right-2 z-10 w-7 h-7 rounded-full bg-black/50 text-white/70 hover:text-white hover:bg-black/70 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-200"
-                      onClick={(e) => openEdit(photo, e)}
-                      title="管理照片"
+                  <CardContainer containerClassName="w-full">
+                    <CardBody
+                      className="rounded-xl overflow-hidden cursor-pointer group relative border border-border/50 bg-background shadow-sm hover:shadow-xl transition-shadow duration-300"
+                      onClick={() => setLightboxIndex(i)}
                     >
-                      <Pencil className="h-3.5 w-3.5" />
-                    </button>
-                  )}
-                  <img
-                    src={photo.src}
-                    alt={photo.title}
-                    className="w-full h-auto transition-transform duration-500 group-hover:scale-110"
-                    loading="lazy"
-                  />
-                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all duration-300 flex items-end">
-                    <div className="p-4 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-300 w-full">
-                      <h3 className="font-semibold">{photo.title}</h3>
-                      <p className="text-xs text-white/70 flex items-center gap-1">
-                        <Camera className="h-3 w-3" /> {photo.camera} · {photo.date}
-                      </p>
-                      {photo.location && (
-                        <p className="text-xs text-white/70 flex items-center gap-1 mt-0.5">
-                          <MapPin className="h-3 w-3" /> {photo.location}
-                        </p>
+                      {/* Edit button — floats highest */}
+                      {isAdmin && (
+                        <CardItem translateZ={70} className="absolute bottom-2 right-2 z-10">
+                          <button
+                            className="w-7 h-7 rounded-full bg-black/50 text-white/70 hover:text-white hover:bg-black/70 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-200"
+                            onClick={(e) => openEdit(photo, e)}
+                            title="管理照片"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+                        </CardItem>
                       )}
-                    </div>
-                  </div>
+                      {/* Image — base layer */}
+                      <CardItem translateZ={40}>
+                        <img
+                          src={photo.src}
+                          alt={photo.title}
+                          className="w-full h-auto transition-transform duration-500 group-hover:scale-110"
+                          loading="lazy"
+                        />
+                      </CardItem>
+                      {/* Overlay — floats above image */}
+                      <CardItem translateZ={60} className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all duration-300 flex items-end">
+                        <div className="p-4 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-300 w-full">
+                          <h3 className="font-semibold">{photo.title}</h3>
+                          <p className="text-xs text-white/70 flex items-center gap-1">
+                            <Camera className="h-3 w-3" /> {photo.camera} · {photo.date}
+                          </p>
+                          {photo.location && (
+                            <p className="text-xs text-white/70 flex items-center gap-1 mt-0.5">
+                              <MapPin className="h-3 w-3" /> {photo.location}
+                            </p>
+                          )}
+                        </div>
+                      </CardItem>
+                    </CardBody>
+                  </CardContainer>
                 </motion.div>
               ))}
             </div>

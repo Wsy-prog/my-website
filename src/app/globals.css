@@ -427,6 +427,27 @@ body {
   animation: gradient-flow 4s ease-in-out infinite;
 }
 
+/* blog editor: animated gradient text (toggled by ✨ button) */
+.grad-text {
+  display: inline !important;
+  -webkit-background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  background-clip: text !important;
+}
+.grad-0  { background: linear-gradient(135deg, #a855f7, #ec4899, #06b6d4) !important; }
+.grad-1  { background: linear-gradient(135deg, #a855f7, #06b6d4) !important; }
+.grad-2  { background: linear-gradient(135deg, #a855f7, #6366f1) !important; }
+.grad-3  { background: linear-gradient(135deg, #06b6d4, #3b82f6) !important; }
+.grad-4  { background: linear-gradient(135deg, #f472b6, #f59e0b) !important; }
+.grad-5  { background: linear-gradient(135deg, #a855f7, #c026d3) !important; }
+.grad-6  { background: linear-gradient(135deg, #a855f7, #a855f7) !important; }
+.grad-7  { background: linear-gradient(135deg, #06b6d4, #06b6d4) !important; }
+.grad-8  { background: linear-gradient(135deg, #22c55e, #06b6d4) !important; }
+.grad-anim {
+  background-size: 300% 100% !important;
+  animation: gradient-flow 3s ease-in-out infinite !important;
+}
+
 /* ========== Scroll animations ========== */
 @keyframes fade-in-up {
   from {
@@ -507,4 +528,161 @@ body {
     margin: 1.5cm;
     size: A4;
   }
+}
+
+/* ========== Rocker Switch ========== */
+.rocker {
+  display: inline-block;
+  position: relative;
+  font-size: 2em;
+  font-weight: bold;
+  text-align: center;
+  text-transform: uppercase;
+  color: #888;
+  width: 7em;
+  height: 4em;
+  overflow: hidden;
+  border: 0 solid transparent;
+  border-bottom: 0.5em solid transparent;
+  border-image-source: linear-gradient(135deg, #a855f7, #ec4899, #06b6d4);
+  border-image-slice: 1;
+}
+.rocker-small {
+  font-size: 0.75em;
+  margin: 0.75em;
+}
+.rocker::before {
+  content: "";
+  position: absolute;
+  top: 0.5em;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #999;
+  border: 0.5em solid transparent;
+  border-bottom: 0;
+  border-image-source: linear-gradient(135deg, #a855f7, #ec4899, #06b6d4);
+  border-image-slice: 1;
+}
+.rocker-input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+  position: absolute;
+}
+.switch-left,
+.switch-right {
+  cursor: pointer;
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 2.5em;
+  width: 3em;
+  transition: 0.2s;
+  user-select: none;
+}
+.switch-left {
+  height: 2.4em;
+  width: 2.75em;
+  left: 0.85em;
+  bottom: 0.4em;
+  background-color: #ddd;
+  transform: rotate(15deg) skewX(15deg);
+}
+.switch-right {
+  right: 0.5em;
+  bottom: 0;
+  background-color: #bd5757;
+  color: #fff;
+}
+.switch-left::before,
+.switch-right::before {
+  content: "";
+  position: absolute;
+  width: 0.4em;
+  height: 2.45em;
+  bottom: -0.45em;
+  background-color: #ccc;
+  transform: skewY(-65deg);
+}
+.switch-left::before {
+  left: -0.4em;
+}
+.switch-right::before {
+  right: -0.375em;
+  background-color: transparent;
+  transform: skewY(65deg);
+}
+/* checked: left side snaps flat + gets project gradient */
+.rocker-input:checked + .switch-left {
+  background: linear-gradient(135deg, #a855f7, #ec4899, #06b6d4);
+  color: #fff;
+  bottom: 0px;
+  left: 0.5em;
+  height: 2.5em;
+  width: 3em;
+  transform: rotate(0deg) skewX(0deg);
+}
+.rocker-input:checked + .switch-left::before {
+  background-color: transparent;
+  width: 3.0833em;
+}
+.rocker-input:checked + .switch-left + .switch-right {
+  background-color: #ddd;
+  color: #888;
+  bottom: 0.4em;
+  right: 0.8em;
+  height: 2.4em;
+  width: 2.75em;
+  transform: rotate(-15deg) skewX(-15deg);
+}
+.rocker-input:checked + .switch-left + .switch-right::before {
+  background-color: #ccc;
+}
+/* focus */
+.rocker-input:focus + .switch-left { color: #333; }
+.rocker-input:checked:focus + .switch-left { color: #fff; }
+.rocker-input:focus + .switch-left + .switch-right { color: #fff; }
+.rocker-input:checked:focus + .switch-left + .switch-right { color: #333; }
+/* dark mode: keep the same light-gray chassis, just dim the faces a touch */
+.dark .switch-left,
+.dark .rocker-input:checked + .switch-left + .switch-right {
+  background-color: #c0c0c0;
+}
+.dark .switch-right {
+  background-color: #a04444;
+}
+.dark .switch-left::before,
+.dark .switch-right::before,
+.dark .rocker-input:checked + .switch-left + .switch-right::before {
+  background-color: #b0b0b0;
+}
+
+/* ========== Shimmer hover effect ========== */
+.btn-shimmer-hover {
+  position: relative;
+  overflow: hidden;
+}
+.btn-shimmer-hover::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(168, 85, 247, 0.3) 30%,
+    rgba(236, 72, 153, 0.5) 50%,
+    rgba(6, 182, 212, 0.3) 70%,
+    transparent 100%
+  );
+  /* purple→pink→cyan shimmer */
+  /* no transition here — instant reset on mouse-out */
+}
+.btn-shimmer-hover:hover::after {
+  left: 100%;
+  transition: left 0.6s ease;
 }
