@@ -5,6 +5,7 @@ import { AnimationProvider } from "@/lib/animation-context";
 import { ThemeProvider } from "@/lib/theme-context";
 import { AuthProvider } from "@/lib/auth-context";
 import { SiteDefaultsInit } from "@/components/shared/SiteDefaultsInit";
+import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
 import ClickWords from "@/components/shared/ClickWords";
 
 function ServiceWorkerRegister() {
@@ -26,6 +27,7 @@ export function ClientProviders({
   defaults: Record<string, string> | null;
 }) {
   return (
+    <ErrorBoundary>
     <AuthProvider>
       <AnimationProvider>
         <ThemeProvider>
@@ -36,5 +38,6 @@ export function ClientProviders({
         </ThemeProvider>
       </AnimationProvider>
     </AuthProvider>
+    </ErrorBoundary>
   );
 }

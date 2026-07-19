@@ -9,7 +9,7 @@ function getPool(): Pool {
     pool = new Pool({
       connectionString: url,
       ssl: { rejectUnauthorized: process.env.NODE_ENV === "production" },
-      max: 3,
+      max: 10,
     });
   }
   return pool;

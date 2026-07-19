@@ -78,7 +78,9 @@ function compressImageToBlob(file: File, maxW: number): Promise<Blob> {
         const canvas = document.createElement("canvas");
         canvas.width = Math.round(img.width * scale);
         canvas.height = Math.round(img.height * scale);
-        canvas.getContext("2d")!.drawImage(img, 0, 0, canvas.width, canvas.height);
+        const ctx = canvas.getContext("2d");
+        if (!ctx) { reject(new Error("Canvas 不可用")); return; }
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
         canvas.toBlob((blob) => {
           if (blob) resolve(blob);
           else reject(new Error("压缩失败"));

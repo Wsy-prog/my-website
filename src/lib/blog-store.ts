@@ -72,6 +72,14 @@ function saveCache(posts: BlogPost[]) {
 
 // ========== 公开方法 ==========
 
+// 序列化锁：防止并发保存条件竞争
+let saveQueue: Promise<any> = Promise.resolve();
+
+function serializedSave(fn: () => Promise<{ ok: boolean }>): Promise<{ ok: boolean }> {
+  saveQueue = saveQueue.then(fn, () => ({ ok: false }));
+  return saveQueue;
+}
+
 /** 获取所有文章：读 localStorage 缓存 */
 export function loadCustomPosts(): BlogPost[] {
   return loadCache();
@@ -91,25 +99,28 @@ export async function loadCustomPostsServer(): Promise<BlogPost[]> {
  * 返回 { ok: boolean }，调用方可选择是否给用户反馈。
  */
 export async function saveCustomPost(post: BlogPost): Promise<{ ok: boolean }> {
-  const posts = loadCache();
-  const idx = posts.findIndex((p) => p.slug === post.slug);
-  if (idx >= 0) {
-    posts[idx] = post;
-  } else {
-    posts.unshift(post);
-  }
-  saveCache(posts);
-  // 同步到 API（带 token 认证，await 等待结果）
-  const ok = await saveToApi(posts);
-  return { ok };
+  return serializedSave(async () => {
+    const posts = loadCache();
+    const idx = posts.findIndex((p) => p.slug === post.slug);
+    if (idx >= 0) {
+      posts[idx] = post;
+    } else {
+      posts.unshift(post);
+    }
+    saveCache(posts);
+    const ok = await saveToApi(posts);
+    return { ok };
+  });
 }
 
 /** 删除文章：本地 + API */
 export async function deleteCustomPost(slug: string): Promise<{ ok: boolean }> {
-  const posts = loadCache().filter((p) => p.slug !== slug);
-  saveCache(posts);
-  const ok = await saveToApi(posts);
-  return { ok };
+  return serializedSave(async () => {
+    const posts = loadCache().filter((p) => p.slug !== slug);
+    saveCache(posts);
+    const ok = await saveToApi(posts);
+    return { ok };
+  });
 }
 
 /** 合并静态文章 + 本地缓存文章 */

@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useAnimation } from "@/lib/animation-context";
 import { useAuth } from "@/lib/auth-context";
+import { useIsMounted } from "@/lib/use-is-mounted";
 import { getAllMarkers } from "@/lib/travel-store";
 import { loadPhotos, savePhotos, type Photo } from "@/data/photos";
 import { compressAndUpload } from "@/lib/cloudinary";
@@ -23,6 +24,7 @@ const categories = ["全部", "风光", "人像", "视频", "运动", "生活"];
 export const dynamic = "force-dynamic";
 
 function GalleryPageInner() {
+  const isMounted = useIsMounted();
   const { isAdmin } = useAuth();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -61,6 +63,7 @@ function GalleryPageInner() {
     setPhotos(loadPhotos());
     // 从 API 拉取最新数据（仅在成功返回数据时才覆盖，避免 API 失败清空本地数据）
     import("@/data/photos").then(mod => mod.loadPhotosFromServer()).then(serverPhotos => {
+      if (!isMounted()) return;
       if (serverPhotos.length > 0) {
         setPhotos(serverPhotos);
       }
@@ -111,6 +114,14 @@ function GalleryPageInner() {
   }, [photos, activeCategory, searchText, dateStart, dateEnd]);
 
   const currentPhoto = lightboxIndex !== null ? filtered[lightboxIndex] : null;
+
+  // 瀑布流列布局：缓存计算结果，避免每帧重算
+  const columnLayout = useMemo(() => {
+    const cols = typeof window !== "undefined" && window.innerWidth >= 768 ? 3 : 2;
+    const buckets: { photo: Photo; origIndex: number }[][] = Array.from({ length: cols }, () => []);
+    filtered.forEach((photo, i) => buckets[i % cols].push({ photo, origIndex: i }));
+    return buckets;
+  }, [filtered]);
 
   const goNext = () => {
     if (lightboxIndex !== null) {
@@ -497,27 +508,28 @@ function GalleryPageInner() {
               <p>没有找到匹配的照片</p>
             </div>
           ) : (
-            <div className="columns-2 md:columns-3 gap-4 space-y-4">
-              {filtered.map((photo, i) => (
-                <motion.div
-                  key={photo.id}
-                  layout={animEnabled}
-                  initial={animEnabled ? { opacity: 0, scale: 0.9 } : false}
+            <div className="flex gap-4">
+              {columnLayout.map((items, ci) => (
+                <div key={ci} className="flex-1 flex flex-col gap-4">
+                  {items.map(({ photo, origIndex }) => (
+                    <motion.div
+                      key={photo.id}
+                      layout={animEnabled}
+                      initial={animEnabled ? { opacity: 0, scale: 0.9 } : false}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={animEnabled ? { opacity: 0, scale: 0.9 } : undefined}
-                  transition={animEnabled ? { duration: 0.4, delay: i * 0.05 } : { duration: 0 }}
-                  className="break-inside-avoid"
+                  transition={animEnabled ? { duration: 0.4, delay: origIndex * 0.05 } : { duration: 0 }}
                 >
                   <CardContainer containerClassName="w-full">
                     <CardBody
                       className="rounded-xl overflow-hidden cursor-pointer group relative border border-border/50 bg-background shadow-sm hover:shadow-xl transition-shadow duration-300"
-                      onClick={() => setLightboxIndex(i)}
+                      onClick={() => setLightboxIndex(origIndex)}
                     >
                       {/* Edit button — floats highest */}
                       {isAdmin && (
                         <CardItem translateZ={70} className="absolute bottom-2 right-2 z-10">
                           <button
-                            className="w-7 h-7 rounded-full bg-black/50 text-white/70 hover:text-white hover:bg-black/70 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-200"
+                            className="w-7 h-7 rounded-full bg-black/50 text-white/70 hover:text-white hover:bg-black/70 flex items-center justify-center opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-all duration-200"
                             onClick={(e) => openEdit(photo, e)}
                             title="管理照片"
                           >
@@ -553,9 +565,11 @@ function GalleryPageInner() {
                 </motion.div>
               ))}
             </div>
-          )}
-        </>
+          ))}
+        </div>
       )}
+    </>
+  )}
 
       {/* Timeline View */}
       {viewMode === "timeline" && (
@@ -729,7 +743,7 @@ function GalleryPageInner() {
                 download={`${currentPhoto.title}.jpg`}
                 target="_blank"
                 rel="noopener"
-                className="absolute top-14 right-4 w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-cyan-400 flex items-center justify-center text-white shadow-lg shadow-purple-500/30 hover:shadow-purple-500/50 hover:scale-110 transition-all duration-300 animate-pulse"
+                className="absolute top-14 right-4 w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-cyan-400 flex items-center justify-center text-white shadow-lg shadow-purple-500/30 hover:shadow-purple-500/50 hover:scale-110 transition-all duration-300"
                 title="下载照片"
               >
                 <Download className="h-5 w-5" />
@@ -812,7 +826,7 @@ function TimelineView({
               </div>
 
               {/* Date label */}
-              <div className="hidden sm:flex flex-1 items-start pt-1">
+              <div className="flex flex-1 items-start pt-1 max-sm:absolute max-sm:left-4 max-sm:-top-4 max-sm:z-10">
                 <div className={`flex-1 flex ${isEven ? "justify-end pr-1" : "justify-start pl-1"}`}>
                   <div className={isEven ? "text-right" : "text-left"}>
                     {showYear && (

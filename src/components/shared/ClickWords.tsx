@@ -22,7 +22,7 @@ export default function ClickWords() {
   const settingsRef = useRef<ClickWordsSettings>(DEFAULT_SETTINGS);
 
   // keep ref in sync
-  settingsRef.current = settings;
+  useEffect(() => { settingsRef.current = settings; }, [settings]);
 
   // load settings on mount + sync from API
   useEffect(() => {
@@ -85,7 +85,7 @@ export default function ClickWords() {
           animate={{ opacity: 0.7, scale: 1, y: -16 }}
           exit={{ opacity: 0, scale: 1.1, y: -36 }}
           transition={{ duration: 0.5, ease: "easeOut" }}
-          className="fixed font-medium text-sm sm:text-base pointer-events-none select-none whitespace-nowrap z-[9999]"
+          className="fixed font-medium text-sm sm:text-base pointer-events-none select-none whitespace-nowrap z-50"
           style={{
             left: ripple.x,
             top: ripple.y,

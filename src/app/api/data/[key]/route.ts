@@ -46,6 +46,9 @@ export async function POST(
   try {
     await ensureDB();
     const body = await req.json();
+    if (body.data === undefined || body.data === null) {
+      return NextResponse.json({ ok: false, error: "缺少 data 字段" }, { status: 400 });
+    }
     await saveData!(key, body.data);
     return NextResponse.json({ ok: true });
   } catch (e: any) {

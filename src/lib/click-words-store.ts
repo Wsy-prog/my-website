@@ -6,16 +6,22 @@ export interface ClickWordsSettings {
   color: string;    // CSS gradient value
 }
 
-export const COLOR_PRESETS = [
-  { label: "紫→粉→青", value: "linear-gradient(135deg, #a855f7, #ec4899, #06b6d4)" },
-  { label: "紫→青",     value: "linear-gradient(135deg, #a855f7, #06b6d4)" },
-  { label: "紫→靛蓝",   value: "linear-gradient(135deg, #a855f7, #6366f1)" },
-  { label: "青→蓝",     value: "linear-gradient(135deg, #06b6d4, #3b82f6)" },
-  { label: "粉→琥珀",   value: "linear-gradient(135deg, #f472b6, #f59e0b)" },
-  { label: "紫→品红",   value: "linear-gradient(135deg, #a855f7, #c026d3)" },
-  { label: "纯紫",      value: "linear-gradient(135deg, #a855f7, #a855f7)" },
-  { label: "纯青",      value: "linear-gradient(135deg, #06b6d4, #06b6d4)" },
-  { label: "绿→青",     value: "linear-gradient(135deg, #22c55e, #06b6d4)" },
+export interface ColorPreset {
+  label: string;
+  value: string;      // gradient
+  solidColor: string; // first hex color from gradient
+}
+
+export const COLOR_PRESETS: ColorPreset[] = [
+  { label: "紫→粉→青", value: "linear-gradient(135deg, #a855f7, #ec4899, #06b6d4)", solidColor: "#a855f7" },
+  { label: "紫→青",     value: "linear-gradient(135deg, #a855f7, #06b6d4)",           solidColor: "#06b6d4" },
+  { label: "紫→靛蓝",   value: "linear-gradient(135deg, #a855f7, #6366f1)",           solidColor: "#6366f1" },
+  { label: "青→蓝",     value: "linear-gradient(135deg, #06b6d4, #3b82f6)",           solidColor: "#3b82f6" },
+  { label: "粉→琥珀",   value: "linear-gradient(135deg, #f472b6, #f59e0b)",           solidColor: "#f472b6" },
+  { label: "紫→品红",   value: "linear-gradient(135deg, #a855f7, #c026d3)",           solidColor: "#c026d3" },
+  { label: "纯紫",      value: "linear-gradient(135deg, #a855f7, #a855f7)",           solidColor: "#a855f7" },
+  { label: "纯青",      value: "linear-gradient(135deg, #06b6d4, #06b6d4)",           solidColor: "#06b6d4" },
+  { label: "绿→青",     value: "linear-gradient(135deg, #22c55e, #06b6d4)",           solidColor: "#22c55e" },
 ];
 
 export const DEFAULT_SETTINGS: ClickWordsSettings = {

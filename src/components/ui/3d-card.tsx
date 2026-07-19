@@ -80,6 +80,7 @@ export function CardContainer({
               : "rotateY(0deg) rotateX(0deg)",
             transition: isMouseEntered ? "transform 0.05s linear" : "transform 0.4s ease-out",
             transformStyle: "preserve-3d",
+            willChange: "transform",
           }}
         >
           {children}

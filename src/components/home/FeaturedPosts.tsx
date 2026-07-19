@@ -48,7 +48,7 @@ export function FeaturedPosts() {
                 {/* Cover */}
                 {post.coverImage ? (
                   <div className="w-full h-40 rounded-xl overflow-hidden mb-4">
-                    <img src={post.coverImage} alt={post.title} className="w-full h-full object-cover"
+                    <img src={post.coverImage} alt={post.title} loading="lazy" className="w-full h-full object-cover"
                       style={{ objectPosition: `50% ${post.coverPosition ?? 50}%` }} />
                   </div>
                 ) : (

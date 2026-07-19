@@ -354,7 +354,7 @@ export function SettingsPanel() {
                           {asset.id === "__aurora" ? (
                             <div className="aspect-video bg-gradient-to-br from-purple-500/40 to-cyan-400/40 flex items-center justify-center text-2xl">🌌</div>
                           ) : asset.type === "image" ? (
-                            <img src={asset.src || "/images/bg.jpg"} className="aspect-video object-cover w-full" />
+                            <img src={asset.src || "/images/bg.jpg"} loading="lazy" className="aspect-video object-cover w-full" />
                           ) : (
                             <div className="aspect-video bg-muted flex items-center justify-center">
                               <Video className="h-5 w-5 text-muted-foreground" />
@@ -415,7 +415,7 @@ export function SettingsPanel() {
                     {asset.id === "__aurora" ? (
                       <div className="w-9 h-7 rounded bg-gradient-to-br from-purple-500/30 to-cyan-400/30 flex items-center justify-center shrink-0 text-sm">🌌</div>
                     ) : asset.type === "image" ? (
-                      <img src={asset.src || "/images/bg.jpg"} className="w-9 h-7 rounded object-cover shrink-0" />
+                      <img src={asset.src || "/images/bg.jpg"} loading="lazy" className="w-9 h-7 rounded object-cover shrink-0" />
                     ) : (
                       <div className="w-9 h-7 rounded bg-muted flex items-center justify-center shrink-0"><Video className="h-3 w-3 text-muted-foreground" /></div>
                     )}
@@ -678,6 +678,7 @@ function BackupSection() {
       "scroll_animations_enabled",
       "blog_comment_liked",
       "blog_autosave_enabled",
+      "lyrics_settings",
     ];
     const backup: Record<string, any> = {};
     for (const k of keys) {
@@ -744,6 +745,7 @@ function BackupSection() {
             "bg_active_src", "bg_customized", "guestbook_messages", "guestbook_liked",
             "guestbook_visitor_count", "guestbook_visited", "card_theme", "theme",
             "scroll_animations_enabled", "blog_comment_liked", "blog_autosave_enabled",
+      "lyrics_settings",
           ]);
 
           let count = 0;
@@ -890,7 +892,8 @@ function SiteDefaultsDialog({ settings }: { settings: BgSettings }) {
   const bgSrc = settings.activeAssetSrc || "";
   const theme = localStorage.getItem("theme") || "";
   const cardTheme = currentCardTheme;
-  const assets = JSON.parse(localStorage.getItem("bg_assets") || "[]") as { id: string; name: string; type: string; src: string }[];
+  let assets: { id: string; name: string; type: string; src: string }[] = [];
+  try { assets = JSON.parse(localStorage.getItem("bg_assets") || "[]"); } catch {}
   const activeAsset = assets.find(a => a.id !== "__aurora" && bgSrc && (bgSrc.includes(a.id) || bgSrc === a.src));
 
   const bgLabel = bgType === "aurora" ? "极光动画" : bgType === "image" ? (activeAsset?.name || "图片") : bgType === "video" ? (activeAsset?.name || "视频") : "无背景";
@@ -1075,7 +1078,7 @@ function ClickWordsSettingsDialog() {
               </div>
               <div className="space-y-1.5 max-h-48 overflow-y-auto">
                 {settings.words.map((w, i) => (
-                  <div key={i} className="flex items-center gap-1.5">
+                  <div key={w + "-" + i} className="flex items-center gap-1.5">
                     <Input
                       value={w}
                       onChange={(e) => updateWord(i, e.target.value)}

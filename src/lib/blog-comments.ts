@@ -97,6 +97,13 @@ async function syncCommentsToServer(slug: string, comments: BlogComment[]) {
 
 // ========== 公开方法 ==========
 
+// 串行化锁：防止并发保存竞争
+let commentQueue: Promise<any> = Promise.resolve();
+function serializedComment(fn: () => Promise<any>): Promise<any> {
+  commentQueue = commentQueue.then(fn, () => Promise.resolve(undefined));
+  return commentQueue;
+}
+
 /** 加载评论（添加 UI 状态） */
 export function loadComments(slug: string): BlogComment[] {
   const raw = loadCommentsRaw(slug);
@@ -108,14 +115,13 @@ export function loadComments(slug: string): BlogComment[] {
 
 /** 保存评论（去掉 UI 状态，同步本地 + 服务端） */
 export function saveComments(slug: string, comments: BlogComment[]) {
-  const strip = (ms: (BlogComment | BlogReply)[]): any[] =>
-    ms.map(({ showReplyForm, ...m }) => ({ ...m, replies: strip(m.replies) }));
-  saveCommentsRaw(slug, strip(comments));
-  if (comments.length > 0) {
-    addSlug(slug);
-  }
-  // 异步同步到服务端
-  syncCommentsToServer(slug, comments);
+  serializedComment(async () => {
+    const strip = (ms: (BlogComment | BlogReply)[]): any[] =>
+      ms.map(({ showReplyForm, ...m }) => ({ ...m, replies: strip(m.replies) }));
+    saveCommentsRaw(slug, strip(comments));
+    if (comments.length > 0) addSlug(slug);
+    await syncCommentsToServer(slug, comments);
+  });
 }
 
 /**

@@ -47,12 +47,9 @@ export function applySiteDefaults() {
     .then(r => r.json())
     .then(json => {
       if (json.exists && json.data) {
-        // 先保存到 localStorage（这样下次 SSR 前就能读到）
         for (const [k, v] of Object.entries(json.data)) {
           localStorage.setItem(k, String(v));
         }
-        // 直接刷新页面让服务端用新默认重新渲染，避免客户端覆盖的闪烁
-        window.location.reload();
       }
     })
     .catch(() => {});

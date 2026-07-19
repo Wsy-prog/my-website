@@ -19,7 +19,6 @@ import { type TravelMarker } from "@/data/travel-markers";
 import { getAllMarkers, saveAllMarkers } from "@/lib/travel-store";
 import { loadPhotos } from "@/data/photos";
 
-const EMOJIS = ["🏙️","🌆","🏞️","🏡","🌶️","⛰️","🏛️","🦘","🌊","🌃","🐼","🏭","🌴","🏮","🏯","🏝️","🏰","🎡","🗼","🏖️","🌋","🗿","🏕️","🎪","🕌","⛩️","🏗️","🛤️"];
 
 export default function TravelPage() {
   const { isAdmin } = useAuth();

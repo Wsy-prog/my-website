@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { GlassCard } from "@/components/shared/GlassCard";
 import { blogPosts } from "@/data/blog-posts";
@@ -23,19 +24,25 @@ function CountUp({ value }: { value: string }) {
 }
 
 export function StatsSection() {
-  // 直接计算真实值，避免从 0 跳变
-  const blogCount = getAllPosts(blogPosts).length;
-  const photoCount = loadPhotos().length;
-  const travelCount = getAllMarkers().filter(m => !m.groupId).length;
-  const totalAwards = awardCategories.reduce((sum, cat) => sum + cat.items.length, 0);
+  const [stats, setStats] = useState([
+    { value: "0", label: "博客文章" },
+    { value: "0", label: "摄影作品" },
+    { value: "0", label: "获奖荣誉" },
+    { value: "0", label: "旅行足迹" },
+  ]);
 
-  // 用 useEffect 更新（留空则保持默认值），避免闪烁
-  const stats = [
-    { value: String(blogCount), label: "博客文章" },
-    { value: String(photoCount), label: "摄影作品" },
-    { value: String(totalAwards), label: "获奖荣誉" },
-    { value: String(travelCount), label: "旅行足迹" },
-  ];
+  useEffect(() => {
+    const blogCount = getAllPosts(blogPosts).length;
+    const photoCount = loadPhotos().length;
+    const travelCount = getAllMarkers().filter(m => !m.groupId).length;
+    const totalAwards = awardCategories.reduce((sum, cat) => sum + cat.items.length, 0);
+    setStats([
+      { value: String(blogCount || totalAwards > 100 ? blogCount : blogCount), label: "博客文章" },
+      { value: String(photoCount), label: "摄影作品" },
+      { value: String(totalAwards), label: "获奖荣誉" },
+      { value: String(travelCount), label: "旅行足迹" },
+    ]);
+  }, []);
 
   return (
     <section className="py-16 px-4">

@@ -6,7 +6,7 @@ import { motion } from "framer-motion";
 import {
   Bold, Italic, Underline, List, ListOrdered,
   ImageIcon, Smile, ArrowLeft, Send, Quote, Trash2, Undo2, Redo2,
-  Images, Code, Link, Save, Upload,
+  Images, Code, Link, Save, Upload, Palette,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,6 +19,8 @@ import { getAllMarkers } from "@/lib/travel-store";
 import { compressAndUpload } from "@/lib/cloudinary";
 import { ImagePicker } from "@/components/shared/ImagePicker";
 import type { Photo } from "@/data/photos";
+import { COLOR_PRESETS } from "@/lib/click-words-store";
+import { loadCustomTags, saveCustomTags } from "@/lib/blog-tags";
 
 const categories = [
   { key: "life", label: "生活" },
@@ -30,17 +32,12 @@ const categories = [
 
 const EMOJIS = ["😀","😂","🥰","😎","🤔","🤩","🥳","😤","😭","🥺","🤯","🥶","😈","💀","👻","🤡","👍","👎","👊","✌️","🤞","🤟","👋","🤝","💪","🫶","✨","🔥","🌟","💡","❤️","💔","💯","🎉","🎊","🎵","🎶","📝","💻","📷","🎮","🐶","🐱","🐼","🐨","🦁","🐯","🐮","🐷","🦊","🐸","🌸","🌿","🌺","🌻","🌵","🍀","🍕","🍔","🌮","🍣","🥟","🍰","🍩","☕","🍜","🥤","⚽","🏀","🏈","⚾️","🎾","🏐","🚗","🚕","🚌","🚁","✈️","🚀","🚲","🛴","🏔️","🌊","🌅","🌋","🗼","🏯","🎡","🎢","🎪","🎭","🎨","🏆","🥇","📚","📖","🔑","💎","🎁","🔔"];
 
-function loadCustomTags(): string[] {
-  if (typeof window === "undefined") return [];
-  try { return JSON.parse(localStorage.getItem("blog_custom_tags") || "[]"); } catch { return []; }
-}
-function saveCustomTags(tags: string[]) {
-  localStorage.setItem("blog_custom_tags", JSON.stringify(tags));
-}
 function getAllTags(): string[] {
   const base = typeof window !== "undefined" ? getAllMarkers().map(m => m.title) : [];
   return [...new Set([...base, ...loadCustomTags()])].sort((a, b) => a.localeCompare(b, "zh"));
 }
+
+const escapeHtml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
 export const dynamic = "force-dynamic";
 
@@ -62,6 +59,7 @@ function NewBlogPageInner() {
   const [tags, setTags] = useState<string[]>([]);
   const [summary, setSummary] = useState("");
   const [showEmoji, setShowEmoji] = useState(false);
+  const [showColorPicker, setShowColorPicker] = useState(false);
   const [currentHeading, setCurrentHeading] = useState("");
   const [bgOpacity, setBgOpacity] = useState(60);
   const [isDark, setIsDark] = useState(false);
@@ -77,6 +75,12 @@ function NewBlogPageInner() {
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSavedHtmlRef = useRef("");
   const isSavingRef = useRef(false);
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => { isMountedRef.current = false; };
+  }, []);
 
   // 🔑 固定 slug ref：autoSave 和 handleSaveDraft 共用，避免孤立条目
   const draftSlugRef = useRef<string | null>(null);
@@ -139,7 +143,6 @@ function NewBlogPageInner() {
   useEffect(() => {
     const collect = () => {
       const urlSet = new Set<string>();
-      // 照片
       import("@/data/photos").then(mod => {
         mod.loadPhotos().forEach((p: Photo) => { if (p.src) urlSet.add(p.src); });
       }).finally(() => {
@@ -154,14 +157,13 @@ function NewBlogPageInner() {
         setExistingImages(Array.from(urlSet));
       });
     };
-    collect();
-    // 也尝试从服务端拉照片
+    // 先拉服务端照片更新缓存，再统一收集
     import("@/data/photos").then(mod => mod.loadPhotosFromServer()).then(serverPhotos => {
       if (serverPhotos && serverPhotos.length > 0) {
         localStorage.setItem("gallery_photos", JSON.stringify(serverPhotos));
-        collect();
       }
-    });
+      collect();
+    }).catch(() => collect());
   }, []);
 
   // 编辑模式：加载已有文章
@@ -270,11 +272,11 @@ function NewBlogPageInner() {
         draft: isEditingRef.current ? isDraftRef.current : true,
       };
       await saveCustomPost(post).then(({ ok }) => {
-        if (!ok) setSavedIndicator(false);
+        if (!ok && isMountedRef.current) setSavedIndicator(false);
       });
       lastSavedHtmlRef.current = html;
-      setSavedIndicator(true);
-      setTimeout(() => setSavedIndicator(false), 2000);
+      if (isMountedRef.current) setSavedIndicator(true);
+      if (isMountedRef.current) setTimeout(() => setSavedIndicator(false), 2000);
 
       // 🔑 非编辑模式首次自动保存后更新 URL
       if (!isEditingRef.current && draftSlugRef.current && !window.location.search.includes("edit=")) {
@@ -290,6 +292,20 @@ function NewBlogPageInner() {
     handleSaveDraft();
   }
 
+  // Ctrl+Shift+S 快捷键保存草稿（用 ref 避免闭包陈旧）
+  const handleManualSaveRef = useRef(handleManualSave);
+  handleManualSaveRef.current = handleManualSave;
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "S" && e.ctrlKey && e.shiftKey) {
+        e.preventDefault();
+        handleManualSaveRef.current();
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
   // 执行编辑命令
   const exec = useCallback((command: string, value?: string) => {
     document.execCommand(command, false, value);
@@ -301,7 +317,6 @@ function NewBlogPageInner() {
     const file = e.target.files?.[0];
     if (!file) return;
     try {
-      setCoverImage("⏳");
       const url = await compressAndUpload(file, 800);
       setCoverImage(url);
     } catch { setCoverImage(null); }
@@ -316,25 +331,23 @@ function NewBlogPageInner() {
       const el = editorRef.current;
       if (el) {
         el.focus();
-        // 恢复选区到编辑器
+        // 恢复保存的选区
         const sel = window.getSelection();
-        if (sel && sel.rangeCount > 0) {
+        if (imageRangeRef.current && sel && el.contains(imageRangeRef.current.startContainer)) {
+          sel.removeAllRanges();
+          sel.addRange(imageRangeRef.current);
+          imageRangeRef.current = null;
+        } else if (sel && sel.rangeCount > 0) {
           const range = sel.getRangeAt(0);
-          const img = document.createElement("img");
-          img.src = url;
-          img.alt = file.name.replace(/\.[^.]+$/, "");
-          img.className = "rounded-xl my-4 max-w-full";
-          img.style.maxHeight = "400px";
-          range.insertNode(img);
-          // 在图片后插入换行
-          const br = document.createElement("br");
-          range.setStartAfter(img);
-          range.insertNode(br);
-          range.setStartAfter(br);
-          range.collapse(true);
+          range.selectNodeContents(el);
+          range.collapse(false);
           sel.removeAllRanges();
           sel.addRange(range);
         }
+        // 用 execCommand("insertHTML") 插入，保证撤销栈正常工作
+        const alt = escapeHtml(file.name.replace(/\.[^.]+$/, ""));
+        const imgHtml = `<img src="${url}" alt="${alt}" class="rounded-xl my-4 max-w-full" style="max-height:400px" /><br>`;
+        document.execCommand("insertHTML", false, imgHtml);
         fileInputRef.current!.value = "";
       }
     } catch { /* ignore */ }
@@ -349,12 +362,104 @@ function NewBlogPageInner() {
     }
   }
 
+  // 颜色选择器：保存选区，防止弹窗导致选区丢失
+  const colorRangeRef = useRef<Range | null>(null);
+  // 图片上传：保存选区
+  const imageRangeRef = useRef<Range | null>(null);
+  // 代码块：保存选区
+  const codeRangeRef = useRef<Range | null>(null);
+
+  // 应用文字颜色（渐变色）
+  function applyColor(gradient: string) {
+    const el = editorRef.current;
+    if (!el) return;
+    el.focus();
+    // 恢复保存的选区
+    const sel = window.getSelection();
+    if (colorRangeRef.current && sel) {
+      sel.removeAllRanges();
+      sel.addRange(colorRangeRef.current);
+      colorRangeRef.current = null;
+    }
+    if (!sel || !sel.rangeCount || sel.isCollapsed) return;
+    const range = sel.getRangeAt(0);
+    const selectedText = range.toString();
+    if (!selectedText) return;
+
+    // DOM 操作：创建 span 替换选区，样式最可靠
+    const span = document.createElement("span");
+    span.style.cssText = `background:${gradient};-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-fill-color:transparent;caret-color:#a855f7;`;
+    span.textContent = selectedText;
+    range.deleteContents();
+    range.insertNode(span);
+
+    // 光标移到 span 后面，避免在透明区域内闪烁
+    range.setStartAfter(span);
+    range.collapse(true);
+    sel.removeAllRanges();
+    sel.addRange(range);
+
+    setShowColorPicker(false);
+  }
+
+  // 清除文字颜色：DOM 方式删除选区 → 插入纯文本 → 移出渐变 span
+  function clearColor() {
+    const el = editorRef.current;
+    if (!el) return;
+    el.focus();
+    const sel = window.getSelection();
+    if (!sel || !sel.rangeCount || sel.isCollapsed) return;
+    const range = sel.getRangeAt(0);
+    const text = range.toString();
+    if (!text) return;
+
+    // 删除选中内容
+    range.deleteContents();
+    // 在删除位置插入纯文本（此时可能在渐变 span 内部）
+    const textNode = document.createTextNode(text);
+    range.insertNode(textNode);
+
+    // 如果插入点落在渐变 span 内部，把文本挪到 span 外面
+    let parent = textNode.parentNode;
+    while (parent && parent !== el) {
+      if (parent.nodeType === 1) {
+        const bg = (parent as HTMLElement).style.background || "";
+        if (bg.includes("gradient")) {
+          const gradSpan = parent as HTMLElement;
+          const grandParent = gradSpan.parentNode;
+          if (grandParent) {
+            grandParent.insertBefore(textNode, gradSpan.nextSibling);
+            // 如果 span 空了就清理掉
+            if (!gradSpan.textContent?.trim()) {
+              grandParent.removeChild(gradSpan);
+            }
+          }
+          break;
+        }
+      }
+      parent = parent.parentNode;
+    }
+
+    // 光标移到文本后面
+    const newRange = document.createRange();
+    newRange.setStartAfter(textNode);
+    newRange.collapse(true);
+    sel.removeAllRanges();
+    sel.addRange(newRange);
+  }
+
   // 插入图片 URL 到编辑器
   function insertImageUrl(url: string, alt?: string) {
     const el = editorRef.current;
     if (!el) return;
     el.focus();
     const sel = window.getSelection();
+    // 恢复保存的选区（来自 ImagePicker 打开前）
+    if (imageRangeRef.current && sel && el.contains(imageRangeRef.current.startContainer)) {
+      sel.removeAllRanges();
+      sel.addRange(imageRangeRef.current);
+      imageRangeRef.current = null;
+    }
     if (sel && sel.rangeCount > 0) {
       const range = sel.getRangeAt(0);
       const img = document.createElement("img");
@@ -375,43 +480,48 @@ function NewBlogPageInner() {
 
   // 插入代码块
   function insertCodeBlock() {
-    const el = editorRef.current;
-    if (!el) return;
-    el.focus();
-    const sel = window.getSelection();
-    const selectedText = sel && sel.rangeCount > 0 ? sel.toString() : "";
-    const pre = document.createElement("pre");
-    pre.className = "code-block bg-muted/60 rounded-xl p-4 my-4 text-sm font-mono overflow-x-auto outline-none";
-    pre.setAttribute("spellcheck", "false");
-    if (selectedText) {
-      pre.textContent = selectedText;
-    }
+    try {
+      const el = editorRef.current;
+      if (!el) return;
+      el.focus();
+      // 恢复保存的选区，并确保在编辑器内
+      const sel = window.getSelection();
+      if (codeRangeRef.current && sel && el.contains(codeRangeRef.current.startContainer)) {
+        sel.removeAllRanges();
+        sel.addRange(codeRangeRef.current);
+        codeRangeRef.current = null;
+      }
+      const selectedText = sel && sel.rangeCount > 0 ? sel.toString() : "";
+      const pre = document.createElement("pre");
+      pre.className = "code-block bg-muted/60 rounded-xl p-4 my-4 text-sm font-mono overflow-x-auto outline-none";
+      pre.setAttribute("spellcheck", "false");
+      if (selectedText) pre.textContent = selectedText;
 
-    // 后面跟一个空段落，保证代码块下方可继续写正文
-    const trailingP = document.createElement("p");
-    trailingP.innerHTML = "<br>";
+      const trailingP = document.createElement("p");
+      trailingP.innerHTML = "<br>";
 
-    // 插入
-    if (sel && sel.rangeCount > 0 && selectedText) {
-      const range = sel.getRangeAt(0);
-      range.deleteContents();
-      range.insertNode(pre);
-      pre.after(trailingP);
-    } else if (sel && sel.rangeCount > 0) {
-      const range = sel.getRangeAt(0);
-      range.insertNode(pre);
-      pre.after(trailingP);
-    } else {
-      el.appendChild(pre);
-      el.appendChild(trailingP);
+      // 在光标处或编辑器末尾插入
+      if (sel && sel.rangeCount > 0) {
+        const range = sel.getRangeAt(0);
+        if (selectedText) range.deleteContents();
+        range.insertNode(pre);
+        pre.parentNode?.insertBefore(trailingP, pre.nextSibling);
+      } else {
+        el.appendChild(pre);
+        el.appendChild(trailingP);
+      }
+
+      // 光标移到 pre 内部开头
+      const newRange = document.createRange();
+      newRange.setStart(pre, 0);
+      newRange.collapse(true);
+      const s = window.getSelection();
+      s?.removeAllRanges();
+      s?.addRange(newRange);
+      el.focus();
+    } catch (e) {
+      console.error("insertCodeBlock error:", e);
     }
-    // 光标移到 pre 内部开头
-    const newRange = document.createRange();
-    newRange.setStart(pre, 0);
-    newRange.collapse(true);
-    sel?.removeAllRanges();
-    sel?.addRange(newRange);
-    el.focus();
   }
 
   // 插入链接 —— 保存光标位置，弹窗关闭后插入
@@ -439,8 +549,9 @@ function NewBlogPageInner() {
 
     const sel = window.getSelection();
     const displayText = linkText.trim() || linkUrl.trim();
-    const href = linkUrl.trim().replace(/"/g, "&quot;");
-    const linkHtml = `<a href="${href}" class="text-primary underline" target="_blank" rel="noopener noreferrer">${displayText}</a>`;
+    const href = escapeHtml(linkUrl.trim());
+    const text = escapeHtml(displayText);
+    const linkHtml = `<a href="${href}" class="text-primary underline" target="_blank" rel="noopener noreferrer">${text}</a>`;
 
     // 恢复保存的选区
     if (savedRangeRef.current && sel) {
@@ -530,9 +641,9 @@ function NewBlogPageInner() {
 
   // 发布 / 更新
   function handlePublish() {
-    if (!title.trim()) return;
+    if (!title.trim()) { alert("请填写文章标题"); return; }
     const html = editorRef.current?.innerHTML || "";
-    if (!html.replace(/<[^>]*>/g, "").trim()) return;
+    if (!html.replace(/<[^>]*>/g, "").trim()) { alert("请填写文章内容"); return; }
     const wordCount = (editorRef.current?.textContent || "").replace(/\s/g, "").length;
 
     // 编辑模式：保留原 slug 和日期
@@ -719,10 +830,10 @@ function NewBlogPageInner() {
           {/* Tags */}
           <div className="flex items-center gap-1.5 flex-wrap relative">
             <span className="text-xs text-muted-foreground">标签：</span>
-            {tags.map((t, i) => (
-              <Badge key={i} variant="secondary" className="text-xs gap-1 pr-1">
+            {tags.map((t) => (
+              <Badge key={t} variant="secondary" className="text-xs gap-1 pr-1">
                 {t}
-                <button onClick={() => setTags(tags.filter((_, j) => j !== i))}>
+                <button onClick={() => setTags(tags.filter((tag) => tag !== t))}>
                   <span className="text-[10px]">✕</span>
                 </button>
               </Badge>
@@ -793,8 +904,8 @@ function NewBlogPageInner() {
 
         {/* Toolbar */}
         <div className="flex items-center gap-1 p-2 rounded-xl bg-muted/50 border border-border flex-wrap sticky top-20 z-40 backdrop-blur">
-          <button onClick={() => { editorRef.current?.focus(); document.execCommand("undo"); }} className="p-1.5 rounded hover:bg-accent transition-colors" title="撤销 (Ctrl+Z)"><Undo2 className="h-4 w-4" /></button>
-          <button onClick={() => { editorRef.current?.focus(); document.execCommand("redo"); }} className="p-1.5 rounded hover:bg-accent transition-colors" title="重做 (Ctrl+Y)"><Redo2 className="h-4 w-4" /></button>
+          <button onClick={() => { editorRef.current?.focus(); document.execCommand("undo"); }} className="p-1.5 rounded hover:bg-accent transition-colors" title="撤销 (Ctrl+Z)" aria-label="撤销 (Ctrl+Z)"><Undo2 className="h-4 w-4" /></button>
+          <button onClick={() => { editorRef.current?.focus(); document.execCommand("redo"); }} className="p-1.5 rounded hover:bg-accent transition-colors" title="重做 (Ctrl+Y)" aria-label="重做 (Ctrl+Y)"><Redo2 className="h-4 w-4" /></button>
           <span className="w-px h-5 bg-border mx-0.5" />
           <select value={currentHeading} onChange={(e) => applyHeading(e.target.value)}
             className="text-xs rounded-md border border-input bg-background px-1.5 py-1.5 w-16">
@@ -804,34 +915,80 @@ function NewBlogPageInner() {
             <option value="h3">标题3</option>
           </select>
           <span className="w-px h-5 bg-border mx-0.5" />
-          <button onClick={() => exec("bold")} className="p-1.5 rounded hover:bg-accent transition-colors" title="加粗"><Bold className="h-4 w-4" /></button>
-          <button onClick={() => exec("italic")} className="p-1.5 rounded hover:bg-accent transition-colors" title="斜体"><Italic className="h-4 w-4" /></button>
-          <button onClick={() => exec("underline")} className="p-1.5 rounded hover:bg-accent transition-colors" title="下划线"><Underline className="h-4 w-4" /></button>
+          <button onClick={() => exec("bold")} className="p-1.5 rounded hover:bg-accent transition-colors" title="加粗" aria-label="加粗"><Bold className="h-4 w-4" /></button>
+          <button onClick={() => exec("italic")} className="p-1.5 rounded hover:bg-accent transition-colors" title="斜体" aria-label="斜体"><Italic className="h-4 w-4" /></button>
+          <button onClick={() => exec("underline")} className="p-1.5 rounded hover:bg-accent transition-colors" title="下划线" aria-label="下划线"><Underline className="h-4 w-4" /></button>
           <span className="w-px h-5 bg-border mx-0.5" />
-          <button onClick={() => exec("insertUnorderedList")} className="p-1.5 rounded hover:bg-accent transition-colors" title="无序列表"><List className="h-4 w-4" /></button>
-          <button onClick={() => exec("insertOrderedList")} className="p-1.5 rounded hover:bg-accent transition-colors" title="有序列表"><ListOrdered className="h-4 w-4" /></button>
-          <button onClick={() => exec("formatBlock", "<blockquote>")} className="p-1.5 rounded hover:bg-accent transition-colors" title="引用"><Quote className="h-4 w-4" /></button>
+          <button onClick={() => exec("insertUnorderedList")} className="p-1.5 rounded hover:bg-accent transition-colors" title="无序列表" aria-label="无序列表"><List className="h-4 w-4" /></button>
+          <button onClick={() => exec("insertOrderedList")} className="p-1.5 rounded hover:bg-accent transition-colors" title="有序列表" aria-label="有序列表"><ListOrdered className="h-4 w-4" /></button>
+          <button onClick={() => exec("formatBlock", "<blockquote>")} className="p-1.5 rounded hover:bg-accent transition-colors" title="引用" aria-label="引用"><Quote className="h-4 w-4" /></button>
           <span className="w-px h-5 bg-border mx-0.5" />
-          <button onClick={insertCodeBlock} className="p-1.5 rounded hover:bg-accent transition-colors" title="插入代码"><Code className="h-4 w-4" /></button>
-          <button onClick={openLinkDialog} className="p-1.5 rounded hover:bg-accent transition-colors" title="插入链接"><Link className="h-4 w-4" /></button>
+          <button onMouseDown={() => {
+              const s = window.getSelection();
+              if (s && s.rangeCount > 0) codeRangeRef.current = s.getRangeAt(0).cloneRange();
+            }} onClick={() => {
+              insertCodeBlock();
+            }} className="p-1.5 rounded hover:bg-accent transition-colors" title="插入代码" aria-label="插入代码"><Code className="h-4 w-4" /></button>
+          <button onClick={openLinkDialog} className="p-1.5 rounded hover:bg-accent transition-colors" title="插入链接" aria-label="插入链接"><Link className="h-4 w-4" /></button>
           <span className="w-px h-5 bg-border mx-0.5" />
-          <button onClick={() => fileInputRef.current?.click()} className="p-1.5 rounded hover:bg-accent transition-colors" title="本地上传图片"><Upload className="h-4 w-4" /></button>
-          <button onClick={() => setShowInlineImagePicker(true)} className="p-1.5 rounded hover:bg-accent transition-colors" title="已有图片"><ImageIcon className="h-4 w-4" /></button>
+          <button onMouseDown={() => {
+              const s = window.getSelection();
+              if (s && s.rangeCount > 0) imageRangeRef.current = s.getRangeAt(0).cloneRange();
+            }} onClick={() => fileInputRef.current?.click()} className="p-1.5 rounded hover:bg-accent transition-colors" title="本地上传图片" aria-label="本地上传图片"><Upload className="h-4 w-4" /></button>
+          <button onMouseDown={() => {
+              const s = window.getSelection();
+              if (s && s.rangeCount > 0) imageRangeRef.current = s.getRangeAt(0).cloneRange();
+            }} onClick={() => setShowInlineImagePicker(true)} className="p-1.5 rounded hover:bg-accent transition-colors" title="已有图片" aria-label="已有图片"><ImageIcon className="h-4 w-4" /></button>
           <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={insertImage} />
           <div className="relative">
-            <button onClick={() => setShowEmoji(!showEmoji)} className={`p-1.5 rounded transition-colors ${showEmoji ? "bg-accent" : "hover:bg-accent"}`} title="表情">
+            <button onClick={() => setShowEmoji(!showEmoji)} className={`p-1.5 rounded transition-colors ${showEmoji ? "bg-accent" : "hover:bg-accent"}`} title="表情" aria-label="表情">
               <Smile className="h-4 w-4" />
             </button>
             {showEmoji && (
               <>
                 {/* 点击外部关闭遮罩 */}
-                <div className="fixed inset-0 z-40" onClick={() => setShowEmoji(false)} />
+                <div className="fixed inset-0 z-[49]" onClick={() => setShowEmoji(false)} />
                 <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }}
                   className="absolute top-full left-0 mt-1 p-3 rounded-xl border border-border bg-popover shadow-xl grid grid-cols-10 gap-1 max-h-32 overflow-y-auto z-50 min-w-[260px]">
                   {EMOJIS.map((emoji) => (
                     <button key={emoji} onClick={() => insertEmoji(emoji)}
                       className="text-lg p-1 rounded hover:bg-accent transition-colors">{emoji}</button>
                   ))}
+                </motion.div>
+              </>
+            )}
+          </div>
+          <div className="relative">
+            <button onClick={() => {
+              if (!showColorPicker) {
+                // 打开弹窗前保存选区
+                const sel = window.getSelection();
+                if (sel && sel.rangeCount > 0) {
+                  colorRangeRef.current = sel.getRangeAt(0).cloneRange();
+                }
+              }
+              setShowColorPicker(!showColorPicker);
+            }} className={`p-1.5 rounded transition-colors ${showColorPicker ? "bg-accent" : "hover:bg-accent"}`} title="文字颜色" aria-label="文字颜色">
+              <Palette className="h-4 w-4" />
+            </button>
+            {showColorPicker && (
+              <>
+                <div className="fixed inset-0 z-[49]" onClick={() => { colorRangeRef.current = null; setShowColorPicker(false); }} />
+                <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }}
+                  className="absolute top-full left-0 mt-1 p-3 rounded-xl border border-border bg-popover shadow-xl z-50 w-56">
+                  <div className="grid grid-cols-3 gap-3">
+                    {COLOR_PRESETS.map((preset) => (
+                      <button key={preset.value}
+                        onClick={() => applyColor(preset.value)}
+                        className="w-full aspect-square rounded-xl border-2 border-border/50 hover:scale-105 transition-transform shadow-sm"
+                        style={{ background: preset.value }}
+                        title={preset.label} />
+                    ))}
+                  </div>
+                  <button onClick={() => { clearColor(); setShowColorPicker(false); }}
+                    className="w-full mt-2 text-[11px] text-muted-foreground hover:text-foreground text-center py-1.5 rounded-lg hover:bg-accent/50 transition-colors">
+                    清除颜色
+                  </button>
                 </motion.div>
               </>
             )}
@@ -878,7 +1035,7 @@ function NewBlogPageInner() {
                   }
                   // 如果在 blockquote 末尾按 Enter，在后面插入新段落
                   const range = sel3.getRangeAt(0);
-                  if (range.collapsed && range.startOffset >= (nodeBq.textContent || "").length) {
+                  if (range.collapsed && range.startOffset >= (range.startContainer.textContent || "").length) {
                     e.preventDefault();
                     const p = document.createElement("p");
                     p.innerHTML = "<br>";
@@ -896,7 +1053,7 @@ function NewBlogPageInner() {
               }
             }
           }}
-          className="min-h-[500px] p-6 rounded-xl border border-white/20 text-base leading-relaxed focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-text shadow-lg [&_h1]:text-3xl [&_h1]:font-bold [&_h1]:mt-8 [&_h1]:mb-4 [&_h2]:text-2xl [&_h2]:font-semibold [&_h2]:mt-6 [&_h2]:mb-3 [&_h3]:text-xl [&_h3]:font-semibold [&_h3]:mt-5 [&_h3]:mb-2 [&_p]:mb-4 [&_p]:leading-relaxed [&_ul]:list-disc [&_ul]:pl-6 [&_ul]:mb-4 [&_li]:mb-1 [&_ol]:list-decimal [&_ol]:pl-6 [&_ol]:mb-4 [&_li]:mb-1 [&_blockquote]:border-l-4 [&_blockquote]:border-primary/40 [&_blockquote]:pl-4 [&_blockquote]:py-2 [&_blockquote]:my-4 [&_blockquote]:italic [&_blockquote]:text-muted-foreground [&_blockquote]:bg-muted/30 [&_blockquote]:rounded-r-lg [&_img]:rounded-xl [&_img]:my-4 [&_img]:max-w-full [&_strong]:font-semibold [&_em]:italic [&_pre]:bg-muted/60 [&_pre]:rounded-xl [&_pre]:p-4 [&_pre]:my-4 [&_pre]:overflow-x-auto [&_pre]:text-sm [&_pre]:font-mono [&_code]:bg-muted/50 [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded-md [&_code]:text-sm [&_code]:font-mono [&_code]:text-primary [&_pre_code]:bg-transparent [&_pre_code]:px-0 [&_pre_code]:py-0 [&_pre_code]:rounded-none [&_pre_code]:text-foreground [&_a]:text-primary [&_a]:underline empty:before:content-['\5F00\59CB\5199\4F5C...'] empty:before:text-muted-foreground/40 placeholder-code-block"
+          className="min-h-[500px] p-6 rounded-xl border border-white/20 text-base leading-relaxed focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-text shadow-lg [&_h1]:text-3xl [&_h1]:font-bold [&_h1]:mt-8 [&_h1]:mb-4 [&_h2]:text-2xl [&_h2]:font-semibold [&_h2]:mt-6 [&_h2]:mb-3 [&_h3]:text-xl [&_h3]:font-semibold [&_h3]:mt-5 [&_h3]:mb-2 [&_p]:mb-4 [&_p]:leading-relaxed [&_ul]:list-disc [&_ul]:pl-6 [&_ul]:mb-4 [&_li]:mb-1 [&_ol]:list-decimal [&_ol]:pl-6 [&_ol]:mb-4 [&_li]:mb-1 [&_blockquote]:border-l-4 [&_blockquote]:border-primary/40 [&_blockquote]:pl-4 [&_blockquote]:py-2 [&_blockquote]:my-4 [&_blockquote]:italic [&_blockquote]:text-muted-foreground [&_blockquote]:bg-muted/30 [&_blockquote]:rounded-r-lg [&_img]:rounded-xl [&_img]:my-4 [&_img]:max-w-full [&_strong]:font-semibold [&_em]:italic [&_pre]:bg-muted/60 [&_pre]:rounded-xl [&_pre]:p-4 [&_pre]:my-4 [&_pre]:overflow-x-auto [&_pre]:text-sm [&_pre]:font-mono [&_code]:bg-muted/50 [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded-md [&_code]:text-sm [&_code]:font-mono [&_code]:text-primary [&_pre_code]:bg-transparent [&_pre_code]:px-0 [&_pre_code]:py-0 [&_pre_code]:rounded-none [&_pre_code]:text-foreground [&_a]:text-primary [&_a]:underline empty:before:content-['\5F00\59CB\5199\4F5C...'] empty:before:text-muted-foreground/40"
           style={{
             backdropFilter: `blur(${bgOpacity < 30 ? 4 : bgOpacity < 60 ? 12 : 24}px)`,
             background: isDark
@@ -984,7 +1141,7 @@ function NewBlogPageInner() {
                 />
               </div>
               <div className="flex justify-end gap-2 pt-2">
-                <Button variant="outline" size="sm" className="rounded-lg" onClick={() => { setShowLinkDialog(false); setLinkUrl(""); setLinkText(""); }}>取消</Button>
+                <Button variant="outline" size="sm" className="rounded-lg" onClick={() => { savedRangeRef.current = null; setShowLinkDialog(false); setLinkUrl(""); setLinkText(""); }}>取消</Button>
                 <Button size="sm" className="rounded-lg" onClick={insertLink} disabled={!linkUrl.trim()}>插入</Button>
               </div>
             </div>
@@ -1023,7 +1180,7 @@ function NewBlogPageInner() {
                 autoSave ? "translate-x-4" : "translate-x-0"
               }`} />
             </button>
-            <span className="text-xs text-muted-foreground select-none">💾 自动保存（{autoSave ? "每30秒" : "关闭"}）</span>
+            <span className="text-xs text-muted-foreground select-none">💾 自动保存（{autoSave ? "每5秒" : "关闭"}）</span>
           </label>
           {savedIndicator && (
             <span className="text-[11px] text-green-500 animate-pulse">✅ 已保存</span>

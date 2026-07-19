@@ -6,6 +6,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { Search, Calendar, Clock, Tag, List, Timeline as TimelineIcon, X, PenLine, Pencil, Trash2, Tags, Filter } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
+import { useIsMounted } from "@/lib/use-is-mounted";
 import { AnimatedSection } from "@/components/shared/AnimatedSection";
 import { GradientText } from "@/components/shared/GradientText";
 import { GlassCard } from "@/components/shared/GlassCard";
@@ -15,8 +16,9 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useAnimation } from "@/lib/animation-context";
 import { blogPosts } from "@/data/blog-posts";
-import { getAllPosts, loadCustomPosts, deleteCustomPost, saveCustomPost } from "@/lib/blog-store";
+import { getAllPosts, loadCustomPosts, deleteCustomPost, saveCustomPost, loadCustomPostsServer } from "@/lib/blog-store";
 import { getAllMarkers } from "@/lib/travel-store";
+import { loadCustomTags, saveCustomTags } from "@/lib/blog-tags";
 
 const categories = [
   { key: "all", label: "全部" },
@@ -33,6 +35,7 @@ export const dynamic = "force-dynamic";
 
 function BlogPageInner() {
   const { isAdmin } = useAuth();
+  const isMounted = useIsMounted();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const tagParam = searchParams.get("tag") || "";
@@ -65,20 +68,13 @@ function BlogPageInner() {
   const [customTags, setCustomTagsState] = useState<string[]>([]);
   useEffect(() => { setCustomTagsState(loadCustomTags()); }, [tagManageOpen]);
 
-  function loadCustomTags(): string[] {
-    try { return JSON.parse(localStorage.getItem("blog_custom_tags") || "[]"); } catch { return []; }
-  }
-  function saveCustomTags(tags: string[]) {
-    localStorage.setItem("blog_custom_tags", JSON.stringify(tags));
-    setCustomTagsState(tags);
-  }
-
   function addCustomTag() {
     const val = newTagInput.trim();
     if (!val) return;
     const existing = customTags;
     if (!existing.includes(val) && !protectedTags.has(val)) {
       saveCustomTags([...existing, val]);
+      setCustomTagsState([...existing, val]);
       setNewTagInput("");
     }
   }
@@ -87,6 +83,7 @@ function BlogPageInner() {
     // 从标签池移除
     const updated = customTags.filter(t => t !== tag);
     saveCustomTags(updated);
+    setCustomTagsState(updated);
     // 从所有文章中移除该标签
     const all = getAllPosts(blogPosts);
     let changed = false;
@@ -108,7 +105,8 @@ function BlogPageInner() {
     setAllPosts(posts);
     setDraftCount(posts.filter(p => p.draft).length);
     // 从 API 拉取最新数据，合并静态文章（仅成功时覆盖，避免 API 失败清空自定义文章）
-    import("@/lib/blog-store").then(mod => mod.loadCustomPostsServer()).then(serverPosts => {
+    loadCustomPostsServer().then(serverPosts => {
+      if (!isMounted()) return;
       if (serverPosts.length > 0) {
         setAllPosts([...serverPosts, ...blogPosts]);
       }
@@ -287,7 +285,7 @@ function BlogPageInner() {
               <Link href={`/blog/${post.slug}`} className="flex-1">
                 {post.coverImage && (
                   <div className="w-full h-36 rounded-xl overflow-hidden mb-3">
-                    <img src={post.coverImage} alt={post.title} className="w-full h-full object-cover"
+                    <img src={post.coverImage} alt={post.title} loading="lazy" className="w-full h-full object-cover"
                       style={{ objectPosition: `50% ${post.coverPosition ?? 50}%` }} />
                   </div>
                 )}
@@ -311,7 +309,7 @@ function BlogPageInner() {
                 </div>
               </Link>
               {isAdmin && (
-                <div className="absolute bottom-2 right-2 flex gap-1 opacity-0 group-hover/card:opacity-100 transition-opacity">
+                <div className="absolute bottom-2 right-2 flex gap-1 opacity-0 group-hover/card:opacity-100 group-focus-within/card:opacity-100 transition-opacity">
                   <Link href={`/blog/new?edit=${post.slug}`} onClick={(e) => e.stopPropagation()}>
                     <Button variant="ghost" size="icon" className="h-7 w-7 rounded-full">
                       <Pencil className="h-3 w-3" />
@@ -407,7 +405,7 @@ function BlogPageInner() {
                         <GlassCard className="p-4">
                           {post.coverImage && (
                             <div className="w-full h-28 rounded-lg overflow-hidden mb-3">
-                              <img src={post.coverImage} alt={post.title} className="w-full h-full object-cover"
+                              <img src={post.coverImage} alt={post.title} loading="lazy" className="w-full h-full object-cover"
                                 style={{ objectPosition: `50% ${post.coverPosition ?? 50}%` }} />
                             </div>
                           )}
@@ -430,7 +428,7 @@ function BlogPageInner() {
                       </motion.div>
                     </Link>
                     {isAdmin && (
-                      <div className="absolute bottom-2 right-2 flex gap-1 opacity-0 group-hover/tlcard:opacity-100 transition-opacity z-10">
+                      <div className="absolute bottom-2 right-2 flex gap-1 opacity-0 group-hover/tlcard:opacity-100 group-focus-within/tlcard:opacity-100 transition-opacity z-10">
                         <Link href={`/blog/new?edit=${post.slug}`} onClick={(e) => e.stopPropagation()}>
                           <Button variant="ghost" size="icon" className="h-7 w-7 rounded-full bg-background/80">
                             <Pencil className="h-3 w-3" />

@@ -24,7 +24,7 @@ export default function ContactPage() {
         <GlassCard>
           <div className="space-y-4">
             {contactItems.map((item) => (
-              <div key={item.label} className="flex items-center gap-3 p-3 rounded-xl">
+              <div key={item.value} className="flex items-center gap-3 p-3 rounded-xl">
                 <item.icon className="h-5 w-5 shrink-0 text-muted-foreground" />
                 <span className="font-medium w-14 shrink-0">{item.label}</span>
                 <span className="text-sm text-muted-foreground">{item.value}</span>

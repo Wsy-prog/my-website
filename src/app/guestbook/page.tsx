@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Send, User, Clock, Heart, Reply, Trash2 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
+import { useIsMounted } from "@/lib/use-is-mounted";
 import { AnimatedSection } from "@/components/shared/AnimatedSection";
 import { GradientText } from "@/components/shared/GradientText";
 import { GlassCard } from "@/components/shared/GlassCard";
@@ -96,6 +97,7 @@ function setLikedIds(ids: number[]) {
 
 export default function GuestbookPage() {
   const { isAdmin } = useAuth();
+  const isMounted = useIsMounted();
   const [messages, setMessages] = useState<Message[]>([]);
   const [form, setForm] = useState({ name: "", content: "" });
   const [visitorCount, setVisitorCount] = useState<number | null>(null);
@@ -107,6 +109,7 @@ export default function GuestbookPage() {
       try {
         const res = await fetch("/api/data/guestbook_messages");
         const json = await res.json();
+        if (!isMounted()) return;
         if (json.exists && Array.isArray(json.data)) {
           localStorage.setItem(GUESTBOOK_KEY, JSON.stringify(json.data));
           const hydrate = (msgs: any[]): Message[] =>
@@ -116,9 +119,10 @@ export default function GuestbookPage() {
           setMessages(loadMessages());
         }
       } catch {
+        if (!isMounted()) return;
         if (localStorage.getItem(GUESTBOOK_KEY)) setMessages(loadMessages());
       }
-      setLoaded(true);
+      if (isMounted()) setLoaded(true);
     };
     sync();
   }, []);

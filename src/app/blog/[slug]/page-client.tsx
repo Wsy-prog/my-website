@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import DOMPurify from "dompurify";
 import { ArrowLeft, Calendar, Clock, Tag, Share2, Heart, Reply, Trash2, User, Send } from "lucide-react";
 import { AnimatedSection } from "@/components/shared/AnimatedSection";
 import { GlassCard } from "@/components/shared/GlassCard";
@@ -15,6 +16,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { blogPosts, type BlogPost } from "@/data/blog-posts";
 import { getPostBySlug } from "@/lib/blog-store";
 import { useAuth } from "@/lib/auth-context";
+import { useIsMounted } from "@/lib/use-is-mounted";
 import {
   loadComments,
   saveComments,
@@ -160,7 +162,7 @@ export default function BlogPostPage() {
         {/* Cover Image */}
         {post.coverImage && (
           <div className="rounded-2xl overflow-hidden mb-8 -mx-0">
-            <img src={post.coverImage} alt={post.title} className="w-full max-h-80 object-cover"
+            <img src={post.coverImage} alt={post.title} loading="lazy" className="w-full max-h-80 object-cover"
               style={{ objectPosition: `50% ${post.coverPosition ?? 50}%` }} />
           </div>
         )}
@@ -190,7 +192,7 @@ export default function BlogPostPage() {
             {post.content.startsWith("<") ? (
               // HTML 内容（所见即所得编辑器产出）
               <div
-                dangerouslySetInnerHTML={{ __html: post.content }}
+                dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(post.content) }}
                 className="[&_h1]:text-3xl [&_h1]:font-bold [&_h1]:mt-8 [&_h1]:mb-4
                   [&_h2]:text-2xl [&_h2]:font-semibold [&_h2]:mt-6 [&_h2]:mb-3
                   [&_h3]:text-xl [&_h3]:font-semibold [&_h3]:mt-5 [&_h3]:mb-2
@@ -206,7 +208,7 @@ export default function BlogPostPage() {
               // Markdown 内容（旧文章兼容）
               <div
                 dangerouslySetInnerHTML={{
-                  __html: post.content
+                  __html: DOMPurify.sanitize(post.content
                     .replace(/^### (.+)$/gm, '<h3 class="text-xl font-semibold mt-8 mb-3">$1</h3>')
                     .replace(/^## (.+)$/gm, '<h2 class="text-2xl font-bold mt-10 mb-4">$1</h2>')
                     .replace(/^> (.+)$/gm, '<blockquote class="border-l-4 border-primary pl-4 py-2 my-4 italic text-muted-foreground">$1</blockquote>')
@@ -217,7 +219,7 @@ export default function BlogPostPage() {
                     .replace(/^(.+)$/gm, (match: string) => {
                       if (match.startsWith('<')) return match;
                       return `<p class="mb-4">${match}</p>`;
-                    }),
+                    })),
                 }}
               />
             )}
@@ -248,6 +250,7 @@ export default function BlogPostPage() {
 }
 
 function CommentSection({ slug, isAdmin }: { slug: string; isAdmin: boolean }) {
+  const isMounted = useIsMounted();
   const [comments, setComments] = useState<BlogComment[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [form, setForm] = useState({ name: "", content: "" });
@@ -256,10 +259,10 @@ function CommentSection({ slug, isAdmin }: { slug: string; isAdmin: boolean }) {
 
   useEffect(() => {
     setComments(loadComments(slug));
-    const saved = JSON.parse(localStorage.getItem("blog_comment_liked") || "[]") as number[];
-    setLikedIds(saved);
+    try { setLikedIds(JSON.parse(localStorage.getItem("blog_comment_liked") || "[]") as number[]); } catch { setLikedIds([]); }
     // 从服务端拉取最新评论（双向合并）
     mergeCommentsFromServer(slug).then(merged => {
+      if (!isMounted()) return;
       setComments(merged);
       setLoaded(true);
     });
