@@ -146,17 +146,30 @@ export function MusicPlayer() {
   const [manageMode, setManageMode] = useState(false);
   const [showLyrics, setShowLyrics] = useState(false);
   const [showLyricsPanel, setShowLyricsPanel] = useState(false);
-  const init = useMemo(() => loadLyricSettings(), []);
-  const [lyricsColor, setLyricsColor] = useState(init.color);
-  const [lyricsBgOpacity, setLyricsBgOpacity] = useState(init.bgOpacity);
-  const [lyricsBgStyle, setLyricsBgStyle] = useState<"auto" | "glass" | "clean">(init.bgStyle);
-  const [showBorder, setShowBorder] = useState(init.showBorder);
-  const [flowBg, setFlowBg] = useState(init.flowBg);
-  const [hideLyricsBg, setHideLyricsBg] = useState(init.hideBg);
-  const [animateColor, setAnimateColor] = useState(init.animateColor);
+  const [lyricsColor, setLyricsColor] = useState(COLOR_PRESETS[0].value);
+  const [lyricsBgOpacity, setLyricsBgOpacity] = useState(30);
+  const [lyricsBgStyle, setLyricsBgStyle] = useState<"auto" | "glass" | "clean">("auto");
+  const [showBorder, setShowBorder] = useState(false);
+  const [flowBg, setFlowBg] = useState(false);
+  const [hideLyricsBg, setHideLyricsBg] = useState(false);
+  const [animateColor, setAnimateColor] = useState(false);
   const [lyricsPos, setLyricsPos] = useState({ x: 0, y: 0 });
-  const [lyricsScaleX, setLyricsScaleX] = useState(init.scaleX);
-  const [lyricsScaleY, setLyricsScaleY] = useState(init.scaleY);
+  const [lyricsScaleX, setLyricsScaleX] = useState(1);
+  const [lyricsScaleY, setLyricsScaleY] = useState(1);
+
+  // SSR-safe 初始化歌词设置
+  useEffect(() => {
+    const s = loadLyricSettings();
+    setLyricsColor(s.color);
+    setLyricsBgOpacity(s.bgOpacity);
+    setLyricsBgStyle(s.bgStyle);
+    setShowBorder(s.showBorder);
+    setFlowBg(s.flowBg);
+    setHideLyricsBg(s.hideBg);
+    setAnimateColor(s.animateColor);
+    setLyricsScaleX(s.scaleX);
+    setLyricsScaleY(s.scaleY);
+  }, []);
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
   const dragRef = useRef({ dragging: false, startX: 0, startY: 0, originX: 0, originY: 0 });
   const audioRef = useRef<HTMLAudioElement | null>(null);
