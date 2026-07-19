@@ -78,5 +78,6 @@ export function mergeClickWordsFromApi(data: any): ClickWordsSettings | null {
   const merged = { ...DEFAULT_SETTINGS };
   if (Array.isArray(data.words) && data.words.length > 0) merged.words = data.words;
   if (typeof data.duration === "number") merged.duration = data.duration;
+  if (typeof data.color === "string" && data.color) merged.color = data.color;
   return merged;
 }
