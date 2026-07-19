@@ -43,6 +43,33 @@ export function loadClickWordsSettings(): ClickWordsSettings {
 export function saveClickWordsSettings(settings: ClickWordsSettings): void {
   if (typeof window === "undefined") return;
   localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+  // 同步到 API（管理员才能写入）
+  const token = localStorage.getItem("admin_token");
+  fetch("/api/data/click_words_settings", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify({ data: settings }),
+  }).catch(() => {});
+}
+
+/** 从 API 加载设置，合并到 localStorage */
+export async function syncClickWordsFromApi(): Promise<ClickWordsSettings | null> {
+  if (typeof window === "undefined") return null;
+  try {
+    const res = await fetch("/api/data/click_words_settings");
+    const json = await res.json();
+    if (json.exists && json.data) {
+      const merged = mergeClickWordsFromApi(json.data);
+      if (merged) {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
+        return merged;
+      }
+    }
+  } catch {}
+  return null;
 }
 
 /** Merge from API (admin use) */

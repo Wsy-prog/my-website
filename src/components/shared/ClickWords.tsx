@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { loadClickWordsSettings, DEFAULT_SETTINGS, type ClickWordsSettings } from "@/lib/click-words-store";
+import { loadClickWordsSettings, syncClickWordsFromApi, DEFAULT_SETTINGS, type ClickWordsSettings } from "@/lib/click-words-store";
 
 function isInteractive(el: HTMLElement): boolean {
   const tag = el.tagName.toLowerCase();
@@ -16,6 +16,7 @@ function isInteractive(el: HTMLElement): boolean {
 export default function ClickWords() {
   const [settings, setSettings] = useState<ClickWordsSettings>(DEFAULT_SETTINGS);
   const [ripple, setRipple] = useState<{ id: number; word: string; x: number; y: number } | null>(null);
+  const [loaded, setLoaded] = useState(false);
   const indexRef = useRef(0);
   const idRef = useRef(0);
   const settingsRef = useRef<ClickWordsSettings>(DEFAULT_SETTINGS);
@@ -23,11 +24,22 @@ export default function ClickWords() {
   // keep ref in sync
   settingsRef.current = settings;
 
-  // load settings on mount
+  // load settings on mount + sync from API
   useEffect(() => {
-    const loaded = loadClickWordsSettings();
-    setSettings(loaded);
-    settingsRef.current = loaded;
+    const init = async () => {
+      // 先加载本地
+      const local = loadClickWordsSettings();
+      setSettings(local);
+      settingsRef.current = local;
+      // 再从 API 同步（覆盖本地，实现跨设备同步）
+      const remote = await syncClickWordsFromApi();
+      if (remote) {
+        setSettings(remote);
+        settingsRef.current = remote;
+      }
+      setLoaded(true);
+    };
+    init();
   }, []);
 
   // listen for settings changes from settings panel
