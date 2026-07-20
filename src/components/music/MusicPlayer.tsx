@@ -283,12 +283,12 @@ export function MusicPlayer() {
     return () => obs.disconnect();
   }, []);
 
-  // 可视化条（复用 AudioContext，不中断音频）
+  // 可视化条（复用 AudioContext + MediaElementSource，不中断音频）
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio || !showVisualizer) {
       cancelAnimationFrame(animFrameRef.current);
-      if (!showVisualizer) setVisData([]);
+      if (!showVisualizer) { setVisData([]); if (mediaSourceRef.current) mediaSourceRef.current.disconnect(); }
       if (analyserRef.current) { analyserRef.current.disconnect(); analyserRef.current = null; }
       return;
     }
@@ -296,10 +296,13 @@ export function MusicPlayer() {
       if (!audioCtxRef.current) audioCtxRef.current = new AudioContext();
       const ctx = audioCtxRef.current;
       if (ctx.state === "suspended") ctx.resume();
+      // 创建 MediaElementSource（只一次）
+      if (!mediaSourceRef.current) mediaSourceRef.current = ctx.createMediaElementSource(audio);
+      // 断开旧 analyser + 旧 mediaSource 连接，避免叠加导致无声
       if (analyserRef.current) analyserRef.current.disconnect();
+      mediaSourceRef.current.disconnect();
       const analyser = ctx.createAnalyser();
       analyser.fftSize = 64;
-      if (!mediaSourceRef.current) mediaSourceRef.current = ctx.createMediaElementSource(audio);
       mediaSourceRef.current.connect(analyser);
       analyser.connect(ctx.destination);
       analyserRef.current = analyser;
