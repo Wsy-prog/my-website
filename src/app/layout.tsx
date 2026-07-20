@@ -7,7 +7,7 @@ import { ClientProviders } from "@/components/layout/ClientProviders";
 import { MusicPlayer } from "@/components/music/MusicPlayer";
 import { BackToTop } from "@/components/shared/BackToTop";
 import { siteConfig } from "@/lib/config";
-import { loadData } from "@/lib/db";
+import { loadFromDb } from "@/lib/db";
 import "./globals.css";
 
 export const dynamic = "force-dynamic";
@@ -33,7 +33,7 @@ export const metadata: Metadata = {
 
 async function getSiteDefaults() {
   try {
-    const result = await loadData<Record<string, string>>("site_defaults");
+    const result = await loadFromDb<Record<string, string>>("site_defaults");
     if (result.exists && result.data) return result.data;
   } catch { /* 数据库不可用时回退到 config.json */ }
   return null;

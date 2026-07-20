@@ -13,6 +13,15 @@
     "@mdx-js/loader": "^3.1.1",
     "@mdx-js/react": "^3.1.1",
     "@next/mdx": "^16.2.10",
+    "@tiptap/extension-color": "^3.28.0",
+    "@tiptap/extension-image": "^3.28.0",
+    "@tiptap/extension-link": "^3.28.0",
+    "@tiptap/extension-placeholder": "^3.28.0",
+    "@tiptap/extension-text-style": "^3.28.0",
+    "@tiptap/extension-underline": "^3.28.0",
+    "@tiptap/pm": "^3.28.0",
+    "@tiptap/react": "^3.28.0",
+    "@tiptap/starter-kit": "^3.28.0",
     "@types/mdx": "^2.0.14",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -21,6 +30,7 @@
     "highlight.js": "^11.11.1",
     "leaflet": "^1.9.4",
     "lucide-react": "^1.24.0",
+    "marked": "^18.0.6",
     "next": "16.2.10",
     "next-mdx-remote": "^6.0.0",
     "nodemailer": "^9.0.3",
@@ -42,8 +52,8 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.10",
+    "shadcn": "^4.13.0",
     "tailwindcss": "^4",
-    "typescript": "^5",
-    "shadcn": "^4.13.0"
+    "typescript": "^5"
   }
 }

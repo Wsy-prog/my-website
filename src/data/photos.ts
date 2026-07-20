@@ -21,7 +21,7 @@ export async function loadFromApi(): Promise<Photo[]> {
     if (json.exists && Array.isArray(json.data)) {
       return json.data as Photo[];
     }
-  } catch { /* 网络错误 */ }
+  } catch { console.warn("photos: API fetch failed"); }
   return [];
 }
 
@@ -29,7 +29,7 @@ export async function loadFromApi(): Promise<Photo[]> {
 async function saveToApi(photos: Photo[]) {
   try {
     const token = typeof window !== "undefined" ? localStorage.getItem("admin_token") : null;
-    await fetch("/api/data/gallery_photos", {
+    const res = await fetch("/api/data/gallery_photos", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -37,7 +37,12 @@ async function saveToApi(photos: Photo[]) {
       },
       body: JSON.stringify({ data: photos }),
     });
-  } catch { /* 静默 */ }
+    if (res.status === 401) {
+      // token 过期或无效 → 清除本地 token，下次需重新登录
+      localStorage.removeItem("admin_token");
+      window.dispatchEvent(new Event("auth-changed"));
+    }
+  } catch { console.warn("photos: API save failed"); }
 }
 
 // ========== 本地缓存 ==========

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { ensureDB, saveData } from "@/lib/db";
+import { ensureDB, saveToDb } from "@/lib/db";
 
 export async function POST(request: Request) {
   try {
@@ -21,7 +21,7 @@ export async function POST(request: Request) {
       date: new Date().toISOString(),
       read: false,
     });
-    await saveData("contact_messages", contacts);
+    await saveToDb("contact_messages", contacts);
 
     return NextResponse.json({ success: true, message: "消息已发送" });
   } catch {
@@ -31,8 +31,8 @@ export async function POST(request: Request) {
 
 async function loadContacts(): Promise<any[]> {
   try {
-    const { loadData } = await import("@/lib/db");
-    const result = await loadData<any[]>("contact_messages");
+    const { loadFromDb } = await import("@/lib/db");
+    const result = await loadFromDb<any[]>("contact_messages");
     return result?.data || [];
   } catch {
     return [];

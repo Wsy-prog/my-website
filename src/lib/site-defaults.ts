@@ -23,7 +23,7 @@ export async function syncSiteDefaults(): Promise<boolean> {
       const match = assets.find((a: any) => a.src === activeSrc);
       if (match) defaults.bg_active_name = match.name;
     }
-  } catch {}
+  } catch { console.warn("site-defaults: JSON parse failed"); }
   const token = localStorage.getItem("admin_token");
   try {
     const res = await fetch("/api/data/site_defaults", {
@@ -37,20 +37,6 @@ export async function syncSiteDefaults(): Promise<boolean> {
   }
 }
 
-// 访客加载时读取管理员设定的默认值（如果没自定义过）
-export function applySiteDefaults() {
-  if (typeof window === "undefined") return;
-  // 用户手动改过背景 → 不覆盖
-  if (localStorage.getItem("bg_customized") === "true") return;
-
-  fetch("/api/data/site_defaults")
-    .then(r => r.json())
-    .then(json => {
-      if (json.exists && json.data) {
-        for (const [k, v] of Object.entries(json.data)) {
-          localStorage.setItem(k, String(v));
-        }
-      }
-    })
-    .catch(() => {});
-}
+// 访客加载时读取管理员设定的默认值 — 由 SiteDefaultsInit 组件在 SSR 阶段完成
+// SiteDefaultsInit 接收 layout.tsx 直接从数据库读取的 site_defaults，写入 localStorage
+// 不再使用客户端自请求 API 的方式（已被 SiteDefaultsInit 替代）

@@ -42,7 +42,7 @@ export function loadClickWordsSettings(): ClickWordsSettings {
         color: typeof parsed.color === "string" && parsed.color ? parsed.color : DEFAULT_SETTINGS.color,
       };
     }
-  } catch {}
+  } catch { console.warn("click-words-store: load failed"); }
   return { ...DEFAULT_SETTINGS };
 }
 
@@ -74,7 +74,7 @@ export async function syncClickWordsFromApi(): Promise<ClickWordsSettings | null
         return merged;
       }
     }
-  } catch {}
+  } catch { console.warn("click-words-store: load failed"); }
   return null;
 }
 

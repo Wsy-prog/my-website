@@ -3,7 +3,7 @@
     "name": "My Personal Website",
     "title": "个人主页",
     "description": "个人简历、摄影作品、博客文章 —— 记录生活与创作的角落",
-    "url": "https://yoursite.com",
+    "url": "https://wangshuyi.vercel.app",
     "language": "zh",
     "darkMode": "auto"
   },
@@ -70,12 +70,12 @@
       {
         "title": "城南花已开",
         "artist": "三亩地",
-        "src": "/music/三亩地 - 城南花已开.mp3"
+        "src": "https://res.cloudinary.com/ii40ztmn/video/upload/v1783997713/uamlrxgcp1iwewarlfou.mp3"
       },
       {
         "title": "青空",
         "artist": "Candy_Wind",
-        "src": "/music/Candy_Wind - 青空.mp3"
+        "src": "https://res.cloudinary.com/ii40ztmn/video/upload/v1783997735/x3uz1zd2aotor267u0y7.mp3"
       }
     ]
   }

@@ -21,11 +21,8 @@ export function BackgroundLayer({
 
   return (
     <>
-      {/* Aurora layer always present behind custom backgrounds */}
-      {type !== "aurora" && <AuroraBackground />}
-
-      {/* Standalone aurora mode */}
-      {type === "aurora" && <AuroraBackground />}
+      {/* Aurora background — always present beneath custom backgrounds */}
+      <AuroraBackground />
 
       {/* Custom image background */}
       {type === "image" && src && (

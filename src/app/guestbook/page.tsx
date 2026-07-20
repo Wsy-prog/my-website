@@ -174,7 +174,7 @@ useEffect(() => {
           setVisitorCount(0);
         }
       }
-    } catch {}
+    } catch { console.warn("guestbook: save failed"); }
   };
   syncVisitorCount();
 }, []);
@@ -199,7 +199,7 @@ useEffect(() => {
     e.preventDefault();
     if (!form.name.trim() || !form.content.trim()) return;
     const newMsg: Message = {
-      id: Date.now(),
+      id: Date.now() + Math.floor(Math.random() * 10000),
       name: form.name,
       content: form.content,
       date: new Date().toISOString().split("T")[0],
@@ -239,7 +239,7 @@ useEffect(() => {
   const addReply = (parentMsgId: number, parentReplyId: number | null, replyName: string, replyContent: string) => {
     if (!replyName.trim() || !replyContent.trim()) return;
     const reply: ReplyMsg = {
-      id: Date.now(),
+      id: Date.now() + Math.floor(Math.random() * 10000),
       name: replyName,
       content: replyContent,
       date: new Date().toISOString().split("T")[0],

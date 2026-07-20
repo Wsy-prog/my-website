@@ -12,7 +12,7 @@ export function getAllImages(): string[] {
     for (const p of galleryPhotos) {
       if (p.src && typeof p.src === "string") urlSet.add(p.src);
     }
-  } catch {}
+  } catch { console.warn("image-library: load failed"); }
 
   try {
     // 2. 博客文章：封面 + 正文内嵌图片
@@ -27,7 +27,7 @@ export function getAllImages(): string[] {
         }
       }
     }
-  } catch {}
+  } catch { console.warn("image-library: load failed"); }
 
   try {
     // 3. 背景壁纸（仅 Cloudinary URL + 默认壁纸）
@@ -37,9 +37,17 @@ export function getAllImages(): string[] {
         urlSet.add(a.src);
       }
     }
-  } catch {}
+  } catch { console.warn("image-library: load failed"); }
 
-  // 4. 默认壁纸（如果没有的话）
+  // 4. 音乐播放器封面
+  try {
+    const tracks = JSON.parse(localStorage.getItem("music_tracks") || "[]");
+    for (const t of tracks) {
+      if (t.cover && typeof t.cover === "string") urlSet.add(t.cover);
+    }
+  } catch { console.warn("image-library: load failed"); }
+
+  // 5. 默认壁纸（如果没有的话）
   if (!urlSet.has("/images/bg.jpg")) {
     urlSet.add("/images/bg.jpg");
   }

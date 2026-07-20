@@ -1,5 +1,5 @@
 import { Metadata } from "next";
-import { loadData } from "@/lib/db";
+import { loadFromDb } from "@/lib/db";
 import { siteConfig } from "@/lib/config";
 import BlogPostPageClient from "./page-client";
 
@@ -13,7 +13,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
 
   try {
-    const result = await loadData<any[]>("blog_custom_posts");
+    const result = await loadFromDb<any[]>("blog_custom_posts");
     const posts = result.data || [];
     const post = posts.find((p: any) => p.slug === slug);
 

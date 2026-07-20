@@ -33,7 +33,7 @@ export async function loadFromApi(): Promise<BlogPost[]> {
     if (json.exists && Array.isArray(json.data)) {
       return json.data.map(sanitizePost);
     }
-  } catch { /* 网络错误 */ }
+  } catch { console.warn("blog-store: API fetch failed"); }
   return [];
 }
 

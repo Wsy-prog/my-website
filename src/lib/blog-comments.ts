@@ -78,7 +78,7 @@ export async function loadCommentsFromServerForSlug(slug: string): Promise<BlogC
     if (json.exists && Array.isArray(json.data)) {
       return json.data as BlogComment[];
     }
-  } catch { /* 网络错误 */ }
+  } catch { console.warn("blog-comments: API fetch failed"); }
   return null;
 }
 
@@ -92,7 +92,7 @@ async function syncCommentsToServer(slug: string, comments: BlogComment[]) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ data: strip(comments) }),
     });
-  } catch { /* 静默 */ }
+  } catch { console.warn("blog-comments: API sync failed"); }
 }
 
 // ========== 公开方法 ==========

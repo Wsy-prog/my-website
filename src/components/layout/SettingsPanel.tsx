@@ -52,7 +52,7 @@ async function syncAssetsToApi(assets: BgAsset[]) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ data: assets }),
     });
-  } catch { /* 静默 */ }
+  } catch { console.warn("SettingsPanel: API sync failed"); }
 }
 
 async function loadAssetsFromApi(): Promise<BgAsset[]> {
@@ -75,7 +75,7 @@ async function loadAssetsFromApi(): Promise<BgAsset[]> {
       }
       return merged;
     }
-  } catch { /* 网络错误 */ }
+  } catch { console.warn("SettingsPanel: API fetch failed"); }
   return [];
 }
 
@@ -190,7 +190,7 @@ export function SettingsPanel() {
       const updated = [...assets, asset];
       setAssets(updated); saveAssets(updated);
       selectAsset(asset);
-    } catch { /* ignore */ }
+    } catch { console.warn("SettingsPanel: upload failed"); }
   }
 
   // 导入视频（本地文件）
@@ -201,7 +201,7 @@ export function SettingsPanel() {
       const updated = [...assets, asset];
       setAssets(updated); saveAssets(updated);
       selectAsset(asset);
-    } catch { /* ignore */ }
+    } catch { console.warn("SettingsPanel: upload failed"); }
   }
 
   // 导入视频（URL）
@@ -678,6 +678,7 @@ function BackupSection() {
       "scroll_animations_enabled",
       "blog_comment_liked",
       "blog_autosave_enabled",
+      "click_words_settings",
       "lyrics_settings",
     ];
     const backup: Record<string, any> = {};
@@ -687,7 +688,7 @@ function BackupSection() {
         if (v !== null && v !== undefined) {
           try { backup[k] = JSON.parse(v); } catch { backup[k] = v; }
         }
-      } catch {}
+      } catch { console.warn("SettingsPanel: operation failed"); }
     }
     // 备份所有文章评论
     try {
@@ -697,10 +698,10 @@ function BackupSection() {
           try {
             const v = localStorage.getItem(key);
             if (v) backup[key] = JSON.parse(v);
-          } catch {}
+          } catch { console.warn("SettingsPanel: operation failed"); }
         }
       }
-    } catch {}
+    } catch { console.warn("SettingsPanel: operation failed"); }
     // 从 API 拉取 site_defaults（仅存 DB 的数据）
     fetch("/api/data/site_defaults").then(r => r.json()).then(json => {
       if (json.exists && json.data) backup.site_defaults = json.data;
@@ -745,6 +746,7 @@ function BackupSection() {
             "bg_active_src", "bg_customized", "guestbook_messages", "guestbook_liked",
             "guestbook_visitor_count", "guestbook_visited", "card_theme", "theme",
             "scroll_animations_enabled", "blog_comment_liked", "blog_autosave_enabled",
+      "click_words_settings",
       "lyrics_settings",
           ]);
 
@@ -792,7 +794,7 @@ function BackupSection() {
                   headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
                   body: JSON.stringify({ data: v }),
                 });
-              } catch {}
+              } catch { console.warn("SettingsPanel: operation failed"); }
             }
           }
 
@@ -893,7 +895,7 @@ function SiteDefaultsDialog({ settings }: { settings: BgSettings }) {
   const theme = localStorage.getItem("theme") || "";
   const cardTheme = currentCardTheme;
   let assets: { id: string; name: string; type: string; src: string }[] = [];
-  try { assets = JSON.parse(localStorage.getItem("bg_assets") || "[]"); } catch {}
+  try { assets = JSON.parse(localStorage.getItem("bg_assets") || "[]"); } catch { console.warn("SettingsPanel: operation failed"); }
   const activeAsset = assets.find(a => a.id !== "__aurora" && bgSrc && (bgSrc.includes(a.id) || bgSrc === a.src));
 
   const bgLabel = bgType === "aurora" ? "极光动画" : bgType === "image" ? (activeAsset?.name || "图片") : bgType === "video" ? (activeAsset?.name || "视频") : "无背景";

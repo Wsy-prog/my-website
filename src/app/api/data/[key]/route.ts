@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { ensureDB, loadData, saveData } from "@/lib/db";
+import { ensureDB, loadFromDb, saveToDb } from "@/lib/db";
 import { getAuthFromRequest } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -21,7 +21,7 @@ export async function GET(
   const { key } = await params;
   try {
     await ensureDB();
-    const result = await loadData!(key);
+    const result = await loadFromDb(key);
     return NextResponse.json(result);
   } catch (e: any) {
     return NextResponse.json({ error: "读取失败" }, { status: 500 });
@@ -46,7 +46,7 @@ export async function POST(
   try {
     await ensureDB();
     const body = await req.json();
-    await saveData!(key, body.data);
+    await saveToDb(key, body.data);
     return NextResponse.json({ ok: true });
   } catch (e: any) {
     return NextResponse.json({ ok: false, error: "写入失败" }, { status: 500 });

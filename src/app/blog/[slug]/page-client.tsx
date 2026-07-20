@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import DOMPurify from "dompurify";
+import { marked } from "marked";
 import { ArrowLeft, Calendar, Clock, Tag, Share2, Heart, Reply, Trash2, User, Send } from "lucide-react";
 import { AnimatedSection } from "@/components/shared/AnimatedSection";
 import { GlassCard } from "@/components/shared/GlassCard";
@@ -80,7 +81,7 @@ export default function BlogPostPage() {
     e.preventDefault();
     if (!form.name.trim() || !form.content.trim()) return;
     const newComment: BlogComment = {
-      id: Date.now(),
+      id: Date.now() + Math.floor(Math.random() * 10000),
       name: form.name,
       content: form.content,
       date: new Date().toISOString().split("T")[0],
@@ -205,21 +206,11 @@ export default function BlogPostPage() {
                   [&_a]:text-primary [&_a]:underline [&_a]:cursor-pointer"
               />
             ) : (
-              // Markdown 内容（旧文章兼容）
+              // Markdown 内容（旧文章兼容，使用 marked 库解析）
               <div
+                className="prose prose-gray dark:prose-invert max-w-none [&_img]:rounded-xl [&_img]:my-4 [&_img]:max-w-full [&_a]:text-primary [&_a]:underline [&_pre]:rounded-xl [&_pre]:bg-muted [&_pre]:p-4 [&_pre]:overflow-x-auto [&_code]:text-sm [&_blockquote]:border-l-4 [&_blockquote]:border-primary/40 [&_blockquote]:pl-4 [&_blockquote]:py-2 [&_blockquote]:my-4 [&_blockquote]:italic [&_blockquote]:text-muted-foreground [&_blockquote]:bg-muted/30 [&_blockquote]:rounded-r-lg [&_table]:w-full [&_table]:border-collapse [&_th]:border [&_th]:p-2 [&_td]:border [&_td]:p-2"
                 dangerouslySetInnerHTML={{
-                  __html: DOMPurify.sanitize(post.content
-                    .replace(/^### (.+)$/gm, '<h3 class="text-xl font-semibold mt-8 mb-3">$1</h3>')
-                    .replace(/^## (.+)$/gm, '<h2 class="text-2xl font-bold mt-10 mb-4">$1</h2>')
-                    .replace(/^> (.+)$/gm, '<blockquote class="border-l-4 border-primary pl-4 py-2 my-4 italic text-muted-foreground">$1</blockquote>')
-                    .replace(/^- (.+)$/gm, '<li class="ml-4 mb-2 list-disc">$1</li>')
-                    .replace(/^(\d+)\. (.+)$/gm, '<li class="ml-4 mb-2 list-decimal">$2</li>')
-                    .replace(/\*\*(.+?)\*\*/g, '<strong class="font-semibold">$1</strong>')
-                    .replace(/\n\n/g, '</p><p class="mb-4">')
-                    .replace(/^(.+)$/gm, (match: string) => {
-                      if (match.startsWith('<')) return match;
-                      return `<p class="mb-4">${match}</p>`;
-                    })),
+                  __html: DOMPurify.sanitize(marked.parse(post.content, { async: false }) as string),
                 }}
               />
             )}
@@ -288,7 +279,7 @@ function CommentSection({ slug, isAdmin }: { slug: string; isAdmin: boolean }) {
     e.preventDefault();
     if (!form.name.trim() || !form.content.trim()) return;
     const newComment: BlogComment = {
-      id: Date.now(), name: form.name, content: form.content,
+      id: Date.now() + Math.floor(Math.random() * 10000), name: form.name, content: form.content,
       date: new Date().toISOString().split("T")[0], likes: 0, replies: [], showReplyForm: false,
     };
     setComments([newComment, ...comments]);

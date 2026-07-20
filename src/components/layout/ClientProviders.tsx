@@ -10,11 +10,16 @@ import ClickWords from "@/components/shared/ClickWords";
 
 function ServiceWorkerRegister() {
   useEffect(() => {
-    if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("/sw.js").catch(() => {
-        // 静默失败，不影响用户
-      });
-    }
+    // 仅在生产环境注册 Service Worker，避免开发热重载干扰
+    if (process.env.NODE_ENV !== "production") return;
+    if (!("serviceWorker" in navigator)) return;
+    navigator.serviceWorker.getRegistration().then((reg) => {
+      if (!reg) {
+        navigator.serviceWorker.register("/sw.js").catch(() => {
+          // 静默失败，不影响用户
+        });
+      }
+    });
   }, []);
   return null;
 }
