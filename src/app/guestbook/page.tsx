@@ -274,8 +274,7 @@ useEffect(() => {
       </AnimatedSection>
 
       {/* Message Form */}
-      <AnimatedSection delay={0.1}>
-        <GlassCard className="p-6 mb-10">
+      <div className="rounded-2xl border border-border/50 bg-background/50 backdrop-blur-sm p-6 mb-10 shadow-sm">
           <form onSubmit={handleSubmit} className="space-y-4">
             <Input
               placeholder="你的昵称"
@@ -301,8 +300,7 @@ useEffect(() => {
               </Button>
             </div>
           </form>
-        </GlassCard>
-      </AnimatedSection>
+        </div>
 
       {/* Messages */}
       <div className="space-y-4">
