@@ -62,7 +62,16 @@ export default function ClickWords() {
   }, []);
 
   const handleClick = useCallback((e: MouseEvent) => {
-    // 从点击目标向上遍历 DOM 树，检查是否有交互元素
+    // ===== 兜底检查：点击后焦点是否落在表单控件上（最可靠） =====
+    const active = document.activeElement;
+    if (active && active !== document.body) {
+      const activeTag = active.tagName;
+      if (activeTag === "TEXTAREA" || activeTag === "INPUT" || activeTag === "SELECT") return;
+      if (active instanceof HTMLElement && (active.isContentEditable || active.getAttribute?.("contenteditable"))) return;
+      if (active.getAttribute?.("data-slot")) return;
+    }
+
+    // ===== 从点击目标向上遍历 DOM 树 =====
     let node: Element | null = e.target as Element | null;
     while (node) {
       if (isInteractive(node)) return;
