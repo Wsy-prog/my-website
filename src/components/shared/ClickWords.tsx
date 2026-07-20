@@ -4,25 +4,6 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { loadClickWordsSettings, syncClickWordsFromApi, DEFAULT_SETTINGS, type ClickWordsSettings } from "@/lib/click-words-store";
 
-/** 判断一个元素是否是可交互的表单控件或链接 */
-function isInteractive(el: Element | null): boolean {
-  if (!el) return false;
-  const tag = el.tagName;
-  if (["INPUT", "TEXTAREA", "SELECT", "BUTTON", "A"].includes(tag)) return true;
-  if (el.hasAttribute("contenteditable")) return true;
-  // shadcn/ui 组件用 data-slot 标记
-  if (el.hasAttribute("data-slot")) return true;
-  // 递归检查父节点（最多3层以覆盖包装元素）
-  let parent = el.parentElement;
-  for (let i = 0; i < 3 && parent; i++) {
-    const pt = parent.tagName;
-    if (["INPUT", "TEXTAREA", "SELECT", "BUTTON", "A", "FORM"].includes(pt)) return true;
-    if (parent.hasAttribute("data-slot") || parent.hasAttribute("contenteditable")) return true;
-    parent = parent.parentElement;
-  }
-  return false;
-}
-
 export default function ClickWords() {
   const [settings, setSettings] = useState<ClickWordsSettings>(DEFAULT_SETTINGS);
   const [ripple, setRipple] = useState<{ id: number; word: string; x: number; y: number } | null>(null);
@@ -55,20 +36,26 @@ export default function ClickWords() {
 
   const handleClick = useCallback((e: MouseEvent) => {
     const target = e.target as Element;
-    if (isInteractive(target)) return;
+    // 点在了可交互元素上 → 不触发特效
+    if (
+      target?.closest("form") ||
+      target?.closest("input, textarea, select, button, a, [contenteditable], [data-slot]")
+    ) return;
 
     const s = settingsRef.current;
     if (s.words.length === 0) return;
 
     const word = s.words[indexRef.current % s.words.length];
     indexRef.current = (indexRef.current + 1) % s.words.length;
-
     const id = idRef.current++;
-    setRipple({ id, word, x: e.clientX, y: e.clientY });
 
-    setTimeout(() => {
-      setRipple((prev) => (prev?.id === id ? null : prev));
-    }, s.duration);
+    // 延迟到下一帧，避免干扰当前点击的焦点行为
+    requestAnimationFrame(() => {
+      setRipple({ id, word, x: e.clientX, y: e.clientY });
+      setTimeout(() => {
+        setRipple((prev) => (prev?.id === id ? null : prev));
+      }, s.duration);
+    });
   }, []);
 
   useEffect(() => {
