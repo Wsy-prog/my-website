@@ -661,7 +661,7 @@ function ThemeModeToggle() {
 function BackupSection() {
   const [status, setStatus] = useState<string | null>(null);
 
-  function exportData() {
+  async function exportData() {
     const keys = [
       "blog_custom_posts",
       "blog_custom_tags",
@@ -709,10 +709,12 @@ function BackupSection() {
         }
       }
     } catch { console.warn("SettingsPanel: operation failed"); }
-    // 从 API 拉取 site_defaults（仅存 DB 的数据）
-    fetch("/api/data/site_defaults").then(r => r.json()).then(json => {
+    // 从 API 拉取 site_defaults（await 等待完成后再下载）
+    try {
+      const res = await fetch("/api/data/site_defaults");
+      const json = await res.json();
       if (json.exists && json.data) backup.site_defaults = json.data;
-    }).catch(() => {});
+    } catch { console.warn("SettingsPanel: API fetch failed"); }
     backup._exported_at = new Date().toISOString();
     const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
