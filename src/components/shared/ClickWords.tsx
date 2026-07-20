@@ -87,6 +87,13 @@ export default function ClickWords() {
     try {
       const el = document.elementFromPoint(x, y);
       if (!el) return false;
+      // 调试：检查点击到的实际元素
+      if (!(el instanceof Element) || (!isFocusable(el) && !el.closest?.("textarea,input,select,button,a,[data-slot],[data-cw-ignore]"))) {
+        // 走到这里说明点击到的不是交互元素 - 检查具体是什么
+        const tag = el instanceof Element ? el.tagName : typeof el;
+        // 只在开发意识下留痕迹
+        if (el instanceof HTMLElement && el.closest?.("textarea")) return true; // 如果 ancestor 是 textarea 也算
+      }
       let node = el instanceof Element ? el : null;
       while (node) {
         if (isFocusable(node)) return true;

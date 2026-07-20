@@ -6,7 +6,6 @@ import { ThemeProvider } from "@/lib/theme-context";
 import { AuthProvider } from "@/lib/auth-context";
 import { SiteDefaultsInit } from "@/components/shared/SiteDefaultsInit";
 import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
-import ClickWords from "@/components/shared/ClickWords";
 
 function ServiceWorkerRegister() {
   useEffect(() => {
@@ -38,7 +37,7 @@ export function ClientProviders({
         <ThemeProvider>
           <ServiceWorkerRegister />
           <SiteDefaultsInit defaults={defaults} />
-          <ClickWords />
+          {/* <ClickWords /> */}
           {children}
         </ThemeProvider>
       </AnimationProvider>
