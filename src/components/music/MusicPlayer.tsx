@@ -610,7 +610,7 @@ export function MusicPlayer() {
         <div className={`fixed inset-0 transition-all duration-700 pointer-events-none ${showLyrics ? "opacity-100 z-[60]" : "opacity-0 z-0"}`}>
           <div className="absolute inset-0 flex items-center justify-center" onWheel={onLyricsWheel}>
             <div ref={lyricsContainerRef} onMouseDown={onLyricsMouseDown}
-              className="pointer-events-auto cursor-grab active:cursor-grabbing select-none rounded-3xl"
+              className={`select-none rounded-3xl ${showLyrics ? "pointer-events-auto cursor-grab active:cursor-grabbing" : "pointer-events-none"}`}
               style={{ transform: `translate(${lyricsPos.x}px, ${lyricsPos.y}px) scale(${lyricsScaleX}, ${lyricsScaleY})`, transition: "transform 0.05s linear", width: "90vw", maxWidth: "42rem" }}>
               {flowBg && !hideLyricsBg && (
                 <div style={{ position: "absolute", inset: 0, borderRadius: "1.5rem", background: `conic-gradient(from 45deg, transparent 0deg, ${borderColor}15 40deg, transparent 80deg, transparent 170deg, ${borderColor}15 210deg, transparent 260deg, transparent 350deg, transparent 360deg)`, pointerEvents: "none" }} />
