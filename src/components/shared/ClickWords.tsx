@@ -4,12 +4,26 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { loadClickWordsSettings, syncClickWordsFromApi, DEFAULT_SETTINGS, type ClickWordsSettings } from "@/lib/click-words-store";
 
-function isInteractive(el: HTMLElement): boolean {
+function isInteractive(el: EventTarget | null): boolean {
+  if (!el || !(el instanceof Element)) return true;
   const tag = el.tagName.toLowerCase();
-  if (["a", "button", "input", "textarea", "select", "label", "svg", "path"].includes(tag)) return true;
-  if (el.getAttribute("role") && /button|link|dialog|tab|menuitem|option/i.test(el.getAttribute("role")!)) return true;
-  if (el.closest("button, a, input, textarea, select, [role='button'], [role='link'], [role='dialog'], [role='tab'], .cursor-pointer, [data-slot], [data-sidebar], [data-state]")) return true;
+
+  // 原生交互元素
+  if (["a", "button", "input", "textarea", "select", "label", "svg", "path", "details", "summary"].includes(tag)) return true;
+
+  // 可编辑区域（contentEditable / 富文本编辑器）
+  if (el instanceof HTMLElement && (el.isContentEditable || el.getAttribute("contenteditable") === "true")) return true;
+
+  // role 属性
+  const role = el.getAttribute("role");
+  if (role && /button|link|dialog|tab|menuitem|option|textbox|combobox|searchbox|slider/.test(role)) return true;
+
+  // 检查祖先链：是否有交互元素 / 表单控件 / data-slot 组件
+  if (el.closest("button, a, input, textarea, select, [contenteditable], details, summary, [role='button'], [role='link'], [role='dialog'], [role='tab'], [role='textbox'], .cursor-pointer, [data-slot], [data-sidebar], [data-state]")) return true;
+
+  // Radix Portal / 弹出层
   if (el.closest("[data-radix-popper-content-wrapper], [data-radix-portal]")) return true;
+
   return false;
 }
 
@@ -54,8 +68,11 @@ export default function ClickWords() {
   }, []);
 
   const handleClick = useCallback((e: MouseEvent) => {
-    const target = e.target as HTMLElement;
-    if (isInteractive(target)) return;
+    // 检查完整事件路径（含 Shadow DOM），路径中任一元素是交互式则跳过
+    const path = e.composedPath();
+    for (const el of path) {
+      if (isInteractive(el)) return;
+    }
 
     const s = settingsRef.current;
     if (s.words.length === 0) return;
