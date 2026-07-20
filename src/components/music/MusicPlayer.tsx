@@ -34,7 +34,6 @@ interface LyricSettings {
   hideBg: boolean;
   animateColor: boolean;
   showVinyl: boolean;
-  showVisualizer: boolean;
   showKaraoke: boolean;
   showCoverBg: boolean;
   scaleX: number;
@@ -49,7 +48,6 @@ const defaultSettings: LyricSettings = {
   hideBg: false,
   animateColor: false,
   showVinyl: false,
-  showVisualizer: false,
   showKaraoke: false,
   showCoverBg: false,
   scaleX: 1,
@@ -154,14 +152,12 @@ export function MusicPlayer() {
   const [hideLyricsBg, setHideLyricsBg] = useState(false);
   const [animateColor, setAnimateColor] = useState(false);
   const [showVinyl, setShowVinyl] = useState(false);
-  const [showVisualizer, setShowVisualizer] = useState(false);
   const [showKaraoke, setShowKaraoke] = useState(false);
   const [showCoverBg, setShowCoverBg] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [lyricsPos, setLyricsPos] = useState({ x: 0, y: 0 });
   const [lyricsScaleX, setLyricsScaleX] = useState(1);
   const [lyricsScaleY, setLyricsScaleY] = useState(1);
-  const [visData, setVisData] = useState<number[]>([]);
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
   const [showCoverPicker, setShowCoverPicker] = useState<number | null>(null);
   const [trackSettings, setTrackSettings] = useState<number | null>(null);
@@ -173,10 +169,6 @@ export function MusicPlayer() {
   const playModeRef = useRef(playMode);
   const tracksLenRef = useRef(0);
   const wheelRafRef = useRef<number | null>(null);
-  const audioCtxRef = useRef<AudioContext | null>(null);
-  const mediaSourceRef = useRef<MediaElementAudioSourceNode | null>(null);
-  const analyserRef = useRef<AnalyserNode | null>(null);
-  const animFrameRef = useRef<number>(0);
   playModeRef.current = playMode;
   tracksLenRef.current = tracks.length;
 
@@ -191,7 +183,6 @@ export function MusicPlayer() {
     setHideLyricsBg(s.hideBg);
     setAnimateColor(s.animateColor);
     setShowVinyl(s.showVinyl);
-    setShowVisualizer(s.showVisualizer);
     setShowKaraoke(s.showKaraoke);
     setShowCoverBg(s.showCoverBg);
     setLyricsScaleX(s.scaleX);
@@ -283,42 +274,15 @@ export function MusicPlayer() {
     return () => obs.disconnect();
   }, []);
 
-  // 可视化条 — 永久连接 AudioContext 图，永不 disconnect，只开关读数循环
-  // 在用户首次播放时初始化（createMediaElementSource 必须在用户交互后）
-  // 可视化条 — 懒初始化：只在用户开启可视化条时创建音频图（此时浏览器已交互）
-  useEffect(() => {
-    if (!showVisualizer || audioCtxRef.current || !audioRef.current) {
-      if (!showVisualizer) { cancelAnimationFrame(animFrameRef.current); setVisData([]); }
-      return;
-    }
-    try {
-      const ctx = new AudioContext();
-      const src = ctx.createMediaElementSource(audioRef.current);
-      const analyser = ctx.createAnalyser();
-      analyser.fftSize = 64;
-      src.connect(analyser);
-      analyser.connect(ctx.destination);
-      if (ctx.state === "suspended") ctx.resume();
-      audioCtxRef.current = ctx;
-      mediaSourceRef.current = src;
-      analyserRef.current = analyser;
-      // 开始读数
-      const buf = new Uint8Array(analyser.frequencyBinCount);
-      const read = () => { analyser.getByteFrequencyData(buf); setVisData(Array.from(buf.slice(0, 30))); animFrameRef.current = requestAnimationFrame(read); };
-      read();
-    } catch {}
-    return () => cancelAnimationFrame(animFrameRef.current);
-  }, [showVisualizer]);
-
   // 歌词设置持久化
   useEffect(() => {
     saveLyricSettings({
       color: lyricsColor, bgOpacity: lyricsBgOpacity, bgStyle: lyricsBgStyle,
       showBorder, flowBg, hideBg: hideLyricsBg, animateColor,
-      showVinyl, showVisualizer, showKaraoke, showCoverBg,
+      showVinyl, showKaraoke, showCoverBg,
       scaleX: lyricsScaleX, scaleY: lyricsScaleY,
     });
-  }, [lyricsColor, lyricsBgOpacity, lyricsBgStyle, showBorder, flowBg, hideLyricsBg, animateColor, showVinyl, showVisualizer, showKaraoke, showCoverBg, lyricsScaleX, lyricsScaleY]);
+  }, [lyricsColor, lyricsBgOpacity, lyricsBgStyle, showBorder, flowBg, hideLyricsBg, animateColor, showVinyl, showKaraoke, showCoverBg, lyricsScaleX, lyricsScaleY]);
 
   // 注入 CSS
   useEffect(() => {
@@ -458,12 +422,6 @@ export function MusicPlayer() {
                 style={{ background: `linear-gradient(to right, var(--primary, #7c3aed) ${(progress / (duration || 1)) * 100}%, var(--border, #e5e7eb) ${(progress / (duration || 1)) * 100}%)` }} />
               <span className="text-[11px] text-muted-foreground w-9 tabular-nums">{formatTime(duration)}</span>
             </div>
-            {/* 可视化条 */}
-            {showVisualizer && visData.length > 0 && (
-              <div className="flex items-end justify-center gap-[3px] h-8 my-2 px-2">
-                {visData.map((v, i) => <div key={i} className="w-[3px] rounded-full transition-all duration-75" style={{ height: `${Math.max(4, v / 2.5)}px`, background: `linear-gradient(to top, ${borderColor}, ${borderColor}88)` }} />)}
-              </div>
-            )}
             {/* 播放控制 */}
             <div className="flex items-center justify-center gap-3">
               <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full" onClick={prevTrack}><SkipBack className="h-4 w-4" /></Button>
@@ -605,12 +563,6 @@ export function MusicPlayer() {
                       </button>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-[10px] text-muted-foreground">可视化条</span>
-                      <button onClick={() => setShowVisualizer(!showVisualizer)} className={`relative w-9 h-4 rounded-full transition-colors ${showVisualizer ? "bg-primary" : "bg-border"}`}>
-                        <span className={`absolute top-0.5 left-0.5 w-3 h-3 rounded-full bg-white shadow-sm transition-transform ${showVisualizer ? "translate-x-[18px]" : "translate-x-0"}`} />
-                      </button>
-                    </div>
-                    <div className="flex items-center justify-between">
                       <span className="text-[10px] text-muted-foreground">逐字高亮</span>
                       <button onClick={() => setShowKaraoke(!showKaraoke)} className={`relative w-9 h-4 rounded-full transition-colors ${showKaraoke ? "bg-primary" : "bg-border"}`}>
                         <span className={`absolute top-0.5 left-0.5 w-3 h-3 rounded-full bg-white shadow-sm transition-transform ${showKaraoke ? "translate-x-[18px]" : "translate-x-0"}`} />
@@ -695,11 +647,6 @@ export function MusicPlayer() {
                   }
                   return items;
                 })()}
-                {showVisualizer && visData.length > 0 && (
-                  <div className="flex items-end justify-center gap-[3px] h-10 mt-4">
-                    {visData.map((v, i) => <div key={i} className="w-[3px] rounded-full transition-all duration-75" style={{ height: `${Math.max(4, v / 2)}px`, background: `linear-gradient(to top, ${borderColor}, ${borderColor}88)` }} />)}
-                  </div>
-                )}
               </div>
             </div>
           </div>
