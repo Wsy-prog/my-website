@@ -15,6 +15,7 @@ import { syncSiteDefaults } from "@/lib/site-defaults";
 import { compressAndUpload, uploadToCloudinary } from "@/lib/cloudinary";
 import RockerSwitch from "@/components/shared/RockerSwitch";
 import { ImagePicker } from "@/components/shared/ImagePicker";
+import { ImageLibrary } from "@/components/shared/ImageLibrary";
 import { UploadProgress } from "@/components/shared/UploadProgress";
 import { loadClickWordsSettings, saveClickWordsSettings, DEFAULT_SETTINGS, COLOR_PRESETS } from "@/lib/click-words-store";
 
@@ -499,6 +500,14 @@ export function SettingsPanel() {
                 onChange={(e) => { const f = e.target.files?.[0]; if (f) { importVideoFile(f); e.target.value = ""; } }} />
             </div>
           )}
+        </section>
+
+        <Separator />
+
+        {/* ===== 图片库 ===== */}
+        <section>
+          <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide mb-3">🖼️ 图片库</h3>
+          <ImageLibrary />
         </section>
 
         <Separator />
