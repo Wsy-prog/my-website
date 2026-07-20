@@ -133,6 +133,9 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>(
     const [showInlineImagePicker, setShowInlineImagePicker] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
+    // 选区更新 key — 选区变化时强制重渲染，让工具栏状态（标题级别、加粗等）同步更新
+    const [, setSelKey] = useState(0);
+
     const editor = useEditor({
       extensions: [
         StarterKit.configure({
@@ -169,6 +172,7 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>(
       ],
       content: initialContent || "<p></p>",
       onUpdate,
+      onSelectionUpdate: () => setSelKey((k) => k + 1),
       editorProps: {
         attributes: {
           class:

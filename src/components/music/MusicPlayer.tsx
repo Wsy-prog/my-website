@@ -164,6 +164,7 @@ export function MusicPlayer() {
   const [visData, setVisData] = useState<number[]>([]);
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
   const [showCoverPicker, setShowCoverPicker] = useState<number | null>(null);
+  const [trackSettings, setTrackSettings] = useState<number | null>(null);
   const dragRef = useRef({ dragging: false, startX: 0, startY: 0, originX: 0, originY: 0 });
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const musicFileRef = useRef<HTMLInputElement | null>(null);
@@ -490,29 +491,35 @@ export function MusicPlayer() {
                             className="w-full text-[11px] text-muted-foreground bg-transparent border-b border-transparent hover:border-border focus:border-primary px-1 py-0.5 focus:outline-none rounded-none" />
                         </div>
                         <div className="flex items-center gap-0.5 shrink-0">
-                          <button onClick={() => moveTrack(i, -1)} disabled={i === 0} className="p-1 rounded hover:bg-accent disabled:opacity-20"><ChevronUp className="h-3.5 w-3.5" /></button>
-                          <button onClick={() => moveTrack(i, 1)} disabled={i === tracks.length - 1} className="p-1 rounded hover:bg-accent disabled:opacity-20"><ChevronDown className="h-3.5 w-3.5" /></button>
-                          {deleteConfirm === i ? (
-                            <div className="flex gap-0.5">
-                              <button onClick={() => { deleteTrack(i); setDeleteConfirm(null); }} className="px-1.5 py-0.5 rounded text-[10px] bg-destructive text-destructive-foreground">确认</button>
-                              <button onClick={() => setDeleteConfirm(null)} className="px-1.5 py-0.5 rounded text-[10px] border border-border">取消</button>
-                            </div>
-                          ) : <button onClick={() => setDeleteConfirm(i)} className="p-1 rounded hover:bg-destructive/10 hover:text-destructive"><Trash2 className="h-3.5 w-3.5" /></button>}
-                          {/* 歌词 */}
-                          <label className={`p-1 rounded inline-flex items-center gap-0.5 ${track.lyrics ? "text-emerald-400 cursor-default" : "cursor-pointer hover:bg-accent text-muted-foreground hover:text-foreground"}`} title={track.lyrics ? "已关联歌词" : "上传歌词"}>
-                            <span className="text-xs">{track.lyrics ? "🎤✅" : "🎤"}</span>
-                            {!track.lyrics && <input type="file" accept=".lrc,.txt" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) uploadLyrics(i, f); }} />}
-                          </label>
-                          {track.lyrics && <button onClick={() => removeLyrics(i)} className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-destructive" title="清除歌词"><X className="h-3 w-3" /></button>}
-                          {/* 封面 */}
-                          <label className="p-1 rounded cursor-pointer hover:bg-accent text-muted-foreground hover:text-foreground" title="本地上传封面">
-                            <span className="text-xs">🖼️</span>
-                            <input type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) uploadCover(i, f); }} />
-                          </label>
-                          <button onClick={() => setShowCoverPicker(i)} className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground" title="已有图片"><span className="text-xs">🏞</span></button>
-                          {track.cover && <button onClick={() => removeCover(i)} className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-destructive" title="清除封面"><X className="h-3 w-3" /></button>}
+                          <button onClick={() => setTrackSettings(trackSettings === i ? null : i)} className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground" title="歌曲设置">
+                            <Settings className="h-3.5 w-3.5" />
+                          </button>
                         </div>
                       </div>
+                      {trackSettings === i && (
+                        <div className="mt-2 pt-2 border-t border-border/50">
+                          <div className="flex items-center gap-1 mb-1.5">
+                            <button onClick={() => moveTrack(i, -1)} disabled={i === 0} className="p-1 rounded hover:bg-accent disabled:opacity-20"><ChevronUp className="h-3 w-3" /></button>
+                            <button onClick={() => moveTrack(i, 1)} disabled={i === tracks.length - 1} className="p-1 rounded hover:bg-accent disabled:opacity-20"><ChevronDown className="h-3 w-3" /></button>
+                            {deleteConfirm === i ? (
+                              <div className="flex gap-1">
+                                <button onClick={() => { deleteTrack(i); setDeleteConfirm(null); }} className="px-1.5 py-0.5 rounded text-[10px] bg-destructive text-destructive-foreground">确认删除</button>
+                                <button onClick={() => setDeleteConfirm(null)} className="px-1.5 py-0.5 rounded text-[10px] border border-border">取消</button>
+                              </div>
+                            ) : <button onClick={() => setDeleteConfirm(i)} className="p-1 rounded hover:bg-destructive/10 hover:text-destructive"><Trash2 className="h-3 w-3" /></button>}
+                          </div>
+                          <div className="flex items-center gap-1 flex-wrap">
+                            <label className={`p-1 rounded inline-flex items-center gap-0.5 text-[10px] ${track.lyrics ? "text-emerald-400 cursor-default" : "cursor-pointer hover:bg-accent text-muted-foreground hover:text-foreground"}`} title={track.lyrics ? "已关联歌词" : "上传歌词"}>
+                              {track.lyrics ? "🎤✅ 歌词" : "🎤 歌词"}
+                              {!track.lyrics && <input type="file" accept=".lrc,.txt" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) uploadLyrics(i, f); }} />}
+                            </label>
+                            {track.lyrics && <button onClick={() => removeLyrics(i)} className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-destructive"><X className="h-3 w-3" /></button>}
+                            <label className="p-1 rounded cursor-pointer hover:bg-accent text-muted-foreground hover:text-foreground text-[10px]">🖼️ 封面上传<input type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) uploadCover(i, f); }} /></label>
+                            <button onClick={() => setShowCoverPicker(i)} className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground text-[10px]">🏞 封面选择</button>
+                            {track.cover && <button onClick={() => removeCover(i)} className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-destructive"><X className="h-3 w-3" /></button>}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
