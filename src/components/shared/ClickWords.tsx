@@ -39,7 +39,7 @@ export default function ClickWords() {
     // 点在了可交互元素上 → 不触发特效
     // form 包含所有表单控件; 也直接检查 input/textarea/select/contentEditable
     if (target?.closest("form") ||
-        target?.closest("input, textarea, select, [contenteditable]")) return;
+        target?.closest("[data-slot], input, textarea, select, [contenteditable], button, a")) return;
 
     const s = settingsRef.current;
     if (s.words.length === 0) return;
