@@ -276,7 +276,7 @@ useEffect(() => {
       {/* Message Form */}
       <AnimatedSection delay={0.1}>
         <GlassCard className="p-6 mb-10">
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4" onClick={(e) => e.stopPropagation()}>
             <Input
               placeholder="你的昵称"
               value={form.name}
@@ -502,7 +502,7 @@ function ReplyForm({ onSubmit, parentName }: { onSubmit: (name: string, content:
   };
 
   return (
-    <form onSubmit={handleSubmit} className="flex gap-2 items-start">
+    <form onSubmit={handleSubmit} className="flex gap-2 items-start" onClick={(e) => e.stopPropagation()}>
       <Input
         placeholder="你的昵称"
         value={name}
