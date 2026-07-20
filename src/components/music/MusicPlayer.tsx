@@ -36,6 +36,7 @@ interface LyricSettings {
   showVinyl: boolean;
   showVisualizer: boolean;
   showKaraoke: boolean;
+  showCoverBg: boolean;
   scaleX: number;
   scaleY: number;
 }
@@ -50,6 +51,7 @@ const defaultSettings: LyricSettings = {
   showVinyl: false,
   showVisualizer: false,
   showKaraoke: false,
+  showCoverBg: false,
   scaleX: 1,
   scaleY: 1,
 };
@@ -81,7 +83,7 @@ async function syncToApi(tracks: Track[]) {
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       body: JSON.stringify({ data: tracks }),
     });
-  } catch { /* 静默 */ }
+  } catch { console.warn("MusicPlayer: API sync failed"); }
 }
 
 async function loadFromApi(): Promise<Track[]> {
@@ -89,7 +91,7 @@ async function loadFromApi(): Promise<Track[]> {
     const res = await fetch("/api/data/music_tracks");
     const json = await res.json();
     if (json.exists && Array.isArray(json.data)) return json.data as Track[];
-  } catch { /* 网络错误 */ }
+  } catch { console.warn("MusicPlayer: API fetch failed"); }
   return [];
 }
 
@@ -154,6 +156,7 @@ export function MusicPlayer() {
   const [showVinyl, setShowVinyl] = useState(false);
   const [showVisualizer, setShowVisualizer] = useState(false);
   const [showKaraoke, setShowKaraoke] = useState(false);
+  const [showCoverBg, setShowCoverBg] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [lyricsPos, setLyricsPos] = useState({ x: 0, y: 0 });
   const [lyricsScaleX, setLyricsScaleX] = useState(1);
@@ -168,6 +171,7 @@ export function MusicPlayer() {
   const lyricsContainerRef = useRef<HTMLDivElement | null>(null);
   const playModeRef = useRef(playMode);
   const tracksLenRef = useRef(0);
+  const wheelRafRef = useRef<number | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const mediaSourceRef = useRef<MediaElementAudioSourceNode | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
@@ -188,6 +192,7 @@ export function MusicPlayer() {
     setShowVinyl(s.showVinyl);
     setShowVisualizer(s.showVisualizer);
     setShowKaraoke(s.showKaraoke);
+    setShowCoverBg(s.showCoverBg);
     setLyricsScaleX(s.scaleX);
     setLyricsScaleY(s.scaleY);
   }, []);
@@ -309,10 +314,10 @@ export function MusicPlayer() {
     saveLyricSettings({
       color: lyricsColor, bgOpacity: lyricsBgOpacity, bgStyle: lyricsBgStyle,
       showBorder, flowBg, hideBg: hideLyricsBg, animateColor,
-      showVinyl, showVisualizer, showKaraoke,
+      showVinyl, showVisualizer, showKaraoke, showCoverBg,
       scaleX: lyricsScaleX, scaleY: lyricsScaleY,
     });
-  }, [lyricsColor, lyricsBgOpacity, lyricsBgStyle, showBorder, flowBg, hideLyricsBg, animateColor, showVinyl, showVisualizer, showKaraoke, lyricsScaleX, lyricsScaleY]);
+  }, [lyricsColor, lyricsBgOpacity, lyricsBgStyle, showBorder, flowBg, hideLyricsBg, animateColor, showVinyl, showVisualizer, showKaraoke, showCoverBg, lyricsScaleX, lyricsScaleY]);
 
   // 注入 CSS
   useEffect(() => {
@@ -604,6 +609,12 @@ export function MusicPlayer() {
                         <span className={`absolute top-0.5 left-0.5 w-3 h-3 rounded-full bg-white shadow-sm transition-transform ${showKaraoke ? "translate-x-[18px]" : "translate-x-0"}`} />
                       </button>
                     </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] text-muted-foreground">封面背景</span>
+                      <button onClick={() => setShowCoverBg(!showCoverBg)} className={`relative w-9 h-4 rounded-full transition-colors ${showCoverBg ? "bg-primary" : "bg-border"}`} disabled={!tracks[currentTrack]?.cover}>
+                        <span className={`absolute top-0.5 left-0.5 w-3 h-3 rounded-full bg-white shadow-sm transition-transform ${showCoverBg ? "translate-x-[18px]" : "translate-x-0"}`} />
+                      </button>
+                    </div>
                     <div><p className="text-[10px] text-muted-foreground mb-1">横向缩放 {Math.round(lyricsScaleX * 100)}%</p>
                       <input type="range" min={50} max={200} value={Math.round(lyricsScaleX * 100)} onChange={e => setLyricsScaleX(parseInt(e.target.value) / 100)} className="w-full h-1 accent-primary" /></div>
                     <div><p className="text-[10px] text-muted-foreground mb-1">纵向缩放 {Math.round(lyricsScaleY * 100)}%</p>
@@ -638,7 +649,10 @@ export function MusicPlayer() {
               )}
               <div className="px-6 py-8 rounded-3xl" style={{
                 margin: 0, position: "relative", zIndex: 1,
-                backgroundColor: hideLyricsBg ? "transparent" : (effectiveBgStyle === "glass" ? `rgba(0,0,0,${lyricsBgOpacity / 100})` : "rgba(255,255,255,0.92)"),
+                backgroundColor: (!hideLyricsBg && showCoverBg && tracks[currentTrack]?.cover) ? undefined : (hideLyricsBg ? "transparent" : (effectiveBgStyle === "glass" ? `rgba(0,0,0,${lyricsBgOpacity / 100})` : "rgba(255,255,255,0.92)")),
+                backgroundImage: (!hideLyricsBg && showCoverBg && tracks[currentTrack]?.cover) ? `url(${tracks[currentTrack].cover})` : undefined,
+                backgroundSize: (!hideLyricsBg && showCoverBg && tracks[currentTrack]?.cover) ? "cover" : undefined,
+                backgroundPosition: "center",
                 backdropFilter: hideLyricsBg ? "none" : "blur(16px)",
                 color: effectiveBgStyle === "clean" ? "#1a1a2e" : undefined,
                 border: (showBorder && !hideLyricsBg) ? "2px solid transparent" : (hideLyricsBg ? "none" : (effectiveBgStyle === "glass" ? "1px solid rgba(255,255,255,0.1)" : "1px solid rgba(0,0,0,0.1)")),

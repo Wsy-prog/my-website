@@ -107,7 +107,7 @@ export default function BlogPostPage() {
   const addReply = (parentId: number, parentReplyId: number | null, replyName: string, replyContent: string) => {
     if (!replyName.trim() || !replyContent.trim()) return;
     const reply: BlogReply = {
-      id: Date.now(),
+      id: Date.now() + Math.floor(Math.random() * 10000),
       name: replyName,
       content: replyContent,
       date: new Date().toISOString().split("T")[0],

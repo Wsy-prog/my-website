@@ -41,7 +41,7 @@ const DEFAULT_ASSETS: BgAsset[] = [
 ];
 
 function saveAssets(assets: BgAsset[], sync = true) {
-  try { localStorage.setItem(BG_ASSETS_KEY, JSON.stringify(assets)); } catch { /* quota */ }
+  try { localStorage.setItem(BG_ASSETS_KEY, JSON.stringify(assets)); } catch { console.warn("SettingsPanel: quota exceeded"); }
   if (sync) syncAssetsToApi(assets);
 }
 

@@ -62,7 +62,7 @@ function loadCache(): BlogPost[] {
   try {
     const raw = localStorage.getItem(CUSTOM_POSTS_KEY);
     return raw ? JSON.parse(raw).map(sanitizePost) : [];
-  } catch { return []; }
+  } catch { console.warn("blog-store: API fetch failed"); return []; }
 }
 
 function saveCache(posts: BlogPost[]) {

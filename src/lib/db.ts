@@ -15,7 +15,7 @@ function getPool(): Pool {
   return pool;
 }
 
-// -- 建表（模块加载时执行一次，冷启动时执行，后续复用） --
+// 模块加载时执行一次建表
 const initPromise = (async () => {
   try {
     await getPool().query(`
@@ -30,7 +30,6 @@ const initPromise = (async () => {
   }
 })();
 
-// -- 读取 --
 export async function loadFromDb<T = any>(key: string): Promise<{ data: T | null; exists: boolean }> {
   await initPromise;
   const result = await getPool().query("SELECT value FROM data WHERE key = $1", [key]);
@@ -38,16 +37,9 @@ export async function loadFromDb<T = any>(key: string): Promise<{ data: T | null
   return { data: result.rows[0].value as T, exists: true };
 }
 
-// -- 写入 --
 export async function saveToDb(key: string, data: any): Promise<void> {
   await initPromise;
-  await getPool().query(
-    "INSERT INTO data (key, value, updated_at) VALUES ($1, $2, NOW()) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()",
-    [key, JSON.stringify(data)]
-  );
+  await getPool().query("INSERT INTO data (key, value, updated_at) VALUES ($1, $2, NOW()) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()", [key, JSON.stringify(data)]);
 }
 
-/** 确保数据库连接和表已就绪（供 API 路由调用，等待初始化完成） */
-export async function ensureDB() {
-  await initPromise;
-}
+export async function ensureDB() { await initPromise; }

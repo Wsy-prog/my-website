@@ -26,11 +26,25 @@
     "education": [],
     "experience": [],
     "awards": [],
-    "hobbies": ["摄影", "旅行", "阅读", "编程", "骑行", "电影"],
+    "hobbies": [
+      "摄影",
+      "旅行",
+      "阅读",
+      "编程",
+      "骑行",
+      "电影"
+    ],
     "skills": []
   },
   "gallery": {
-    "categories": ["全部", "风光", "人像", "视频", "运动", "生活"],
+    "categories": [
+      "全部",
+      "风光",
+      "人像",
+      "视频",
+      "运动",
+      "生活"
+    ],
     "photos": []
   },
   "blog": {
@@ -53,12 +67,27 @@
     "secondaryColor": "#06b6d4"
   },
   "features": {
-    "comments": { "enabled": true, "provider": "giscus" },
-    "subscribe": { "enabled": true, "provider": "resend" },
-    "guestbook": { "enabled": true },
-    "music": { "enabled": true },
-    "pwa": { "enabled": true },
-    "travel": { "enabled": true, "mapProvider": "leaflet" }
+    "comments": {
+      "enabled": true,
+      "provider": "giscus"
+    },
+    "subscribe": {
+      "enabled": true,
+      "provider": "resend"
+    },
+    "guestbook": {
+      "enabled": true
+    },
+    "music": {
+      "enabled": true
+    },
+    "pwa": {
+      "enabled": true
+    },
+    "travel": {
+      "enabled": true,
+      "mapProvider": "leaflet"
+    }
   },
   "travel": {
     "markers": []
