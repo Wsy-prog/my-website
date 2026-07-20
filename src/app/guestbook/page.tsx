@@ -152,9 +152,22 @@ export default function GuestbookPage() {
             setVisitorCount(0);
           }
         }
-      } catch { console.warn("guestbook: visitor count failed"); }
-    };
-    syncVisitorCount();
+      } catch { /* API 不可用时回退 */ }
+
+        // 回退方案：API 不可用时用 localStorage
+        try {
+          const stored = localStorage.getItem("guestbook_visitor_count");
+          const thisVisit = localStorage.getItem("guestbook_visited");
+          let count = stored ? parseInt(stored, 10) : 0;
+          if (!thisVisit) {
+            count += 1;
+            localStorage.setItem("guestbook_visited", "1");
+            localStorage.setItem("guestbook_visitor_count", String(count));
+          }
+          setVisitorCount(count);
+        } catch {}
+      };
+      syncVisitorCount();
   }, []);
 
   const [likedIds, setLikedIdsState] = useState<number[]>([]);
