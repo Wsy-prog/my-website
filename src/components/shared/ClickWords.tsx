@@ -10,7 +10,6 @@ export default function ClickWords() {
   const indexRef = useRef(0);
   const idRef = useRef(0);
   const settingsRef = useRef<ClickWordsSettings>(DEFAULT_SETTINGS);
-  const mousedownOnForm = useRef(false);
 
   useEffect(() => { settingsRef.current = settings; }, [settings]);
 
@@ -35,25 +34,10 @@ export default function ClickWords() {
     return () => window.removeEventListener("click-words-settings-changed", handler);
   }, []);
 
-  // mousedown 比 click 先触发，在这里标记点击是否落在表单控件上
-  useEffect(() => {
-    const onMouseDown = (e: MouseEvent) => {
-      const target = e.target as Element;
-      mousedownOnForm.current = !!(
-        target?.closest("input, textarea, select, [data-slot], button, a") ||
-        target?.closest("form")
-      );
-    };
-    document.addEventListener("mousedown", onMouseDown);
-    return () => document.removeEventListener("mousedown", onMouseDown);
-  }, []);
-
   const handleClick = useCallback((e: MouseEvent) => {
-    // mousedown 时已标记为表单控件 → 跳过
-    if (mousedownOnForm.current) {
-      mousedownOnForm.current = false;
-      return;
-    }
+    // 用 elementFromPoint 获取坐标上的最顶层元素（无视 z-index、DOM 层级问题）
+    const el = document.elementFromPoint(e.clientX, e.clientY);
+    if (el?.closest("input, textarea, select, button, a, [contenteditable], [data-slot], form")) return;
 
     const s = settingsRef.current;
     if (s.words.length === 0) return;
