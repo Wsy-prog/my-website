@@ -281,8 +281,12 @@ function BlogPageInner() {
       {viewMode === "list" && (
         <div className="grid md:grid-cols-2 gap-6">
           {filtered.map((post, i) => (
-            <Link key={post.slug} href={`/blog/${post.slug}`} className="block h-full">
+            <div key={post.slug} className="relative">
             <GlassCard delay={i * 0.1} className="h-full flex flex-col relative group/card cursor-pointer">
+              {/* 全卡片覆盖链接 */}
+              <Link href={`/blog/${post.slug}`} className="absolute inset-0 z-10 rounded-2xl">
+                <span className="sr-only">查看文章：{post.title}</span>
+              </Link>
               <div className="flex-1">
                 {post.coverImage && (
                   <div className="w-full h-36 rounded-xl overflow-hidden mb-3">
@@ -310,7 +314,7 @@ function BlogPageInner() {
                 </div>
               </div>
               {isAdmin && (
-                <div className="absolute bottom-2 right-2 flex gap-1 opacity-0 group-hover/card:opacity-100 group-focus-within/card:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
+                <div className="absolute bottom-2 right-2 z-20 flex gap-1 opacity-0 group-hover/card:opacity-100 group-focus-within/card:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
                   <Link href={`/blog/new?edit=${post.slug}`} onClick={(e) => e.stopPropagation()}>
                     <Button variant="ghost" size="icon" className="h-7 w-7 rounded-full">
                       <Pencil className="h-3 w-3" />
@@ -331,7 +335,7 @@ function BlogPageInner() {
                 </div>
               )}
             </GlassCard>
-            </Link>
+            </div>
           ))}
         </div>
       )}
@@ -399,38 +403,40 @@ function BlogPageInner() {
 
                   {/* Content card */}
                   <div className="flex-1 sm:flex-1 ml-16 sm:ml-0 relative group/tlcard">
-                    <Link href={`/blog/${post.slug}`}>
-                      <motion.div
-                        whileHover={animEnabled ? { scale: 1.02, y: -2 } : undefined}
-                        transition={animEnabled ? { duration: 0.2 } : { duration: 0 }}
-                      >
-                        <GlassCard className="p-4">
-                          {post.coverImage && (
-                            <div className="w-full h-28 rounded-lg overflow-hidden mb-3">
-                              <img src={post.coverImage} alt={post.title} loading="lazy" className="w-full h-full object-cover"
-                                style={{ objectPosition: `50% ${post.coverPosition ?? 50}%` }} />
-                            </div>
-                          )}
-                          <div className="flex items-center gap-2 mb-2">
-                            <span className="text-xs font-mono text-primary font-medium bg-primary/10 px-2 py-0.5 rounded-full">
-                              {post.date}
-                            </span>
-                            <span className="text-xs text-muted-foreground">{post.readTime}</span>
-                          </div>
-                          <h3 className="font-semibold mb-2 leading-snug">{post.title}</h3>
-                          {post.draft && (
-                            <span className="text-[10px] text-amber-500 bg-amber-500/10 px-2 py-0.5 rounded-full font-medium mb-2 inline-block">草稿</span>
-                          )}
-                          <div className="flex flex-wrap gap-1.5">
-                            {post.tags.slice(0, 3).map((tag) => (
-                              <Badge key={tag} variant="secondary" className="text-[10px]">{tag}</Badge>
-                            ))}
-                          </div>
-                        </GlassCard>
-                      </motion.div>
+                    {/* 全卡片覆盖链接 */}
+                    <Link href={`/blog/${post.slug}`} className="absolute inset-0 z-10 rounded-2xl">
+                      <span className="sr-only">查看文章：{post.title}</span>
                     </Link>
+                    <motion.div
+                      whileHover={animEnabled ? { scale: 1.02, y: -2 } : undefined}
+                      transition={animEnabled ? { duration: 0.2 } : { duration: 0 }}
+                    >
+                      <GlassCard className="p-4">
+                        {post.coverImage && (
+                          <div className="w-full h-28 rounded-lg overflow-hidden mb-3">
+                            <img src={post.coverImage} alt={post.title} loading="lazy" className="w-full h-full object-cover"
+                              style={{ objectPosition: `50% ${post.coverPosition ?? 50}%` }} />
+                          </div>
+                        )}
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="text-xs font-mono text-primary font-medium bg-primary/10 px-2 py-0.5 rounded-full">
+                            {post.date}
+                          </span>
+                          <span className="text-xs text-muted-foreground">{post.readTime}</span>
+                        </div>
+                        <h3 className="font-semibold mb-2 leading-snug">{post.title}</h3>
+                        {post.draft && (
+                          <span className="text-[10px] text-amber-500 bg-amber-500/10 px-2 py-0.5 rounded-full font-medium mb-2 inline-block">草稿</span>
+                        )}
+                        <div className="flex flex-wrap gap-1.5">
+                          {post.tags.slice(0, 3).map((tag) => (
+                            <Badge key={tag} variant="secondary" className="text-[10px]">{tag}</Badge>
+                          ))}
+                        </div>
+                      </GlassCard>
+                    </motion.div>
                     {isAdmin && (
-                      <div className="absolute bottom-2 right-2 flex gap-1 opacity-0 group-hover/tlcard:opacity-100 group-focus-within/tlcard:opacity-100 transition-opacity z-10">
+                      <div className="absolute bottom-2 right-2 flex gap-1 opacity-0 group-hover/tlcard:opacity-100 group-focus-within/tlcard:opacity-100 transition-opacity z-20">
                         <Link href={`/blog/new?edit=${post.slug}`} onClick={(e) => e.stopPropagation()}>
                           <Button variant="ghost" size="icon" className="h-7 w-7 rounded-full bg-background/80">
                             <Pencil className="h-3 w-3" />
