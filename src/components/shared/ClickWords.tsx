@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { loadClickWordsSettings, syncClickWordsFromApi, DEFAULT_SETTINGS, type ClickWordsSettings } from "@/lib/click-words-store";
 
@@ -34,10 +34,13 @@ export default function ClickWords() {
     return () => window.removeEventListener("click-words-settings-changed", handler);
   }, []);
 
-  function handleBgClick(e: React.MouseEvent) {
-    const target = e.target as HTMLElement;
-    // 只有点击到背景层本身上才触发（即没有点中任何子元素）
-    if (target !== e.currentTarget) return;
+  const handleClick = useCallback((e: MouseEvent) => {
+    // 点击后检查是否聚焦到了输入框 — 如果是则说明点击的是表单，跳过特效
+    if (e.target && document.activeElement) {
+      const active = document.activeElement;
+      const tag = active.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || active.hasAttribute("contenteditable")) return;
+    }
 
     const s = settingsRef.current;
     if (s.words.length === 0) return;
@@ -45,42 +48,39 @@ export default function ClickWords() {
     const word = s.words[indexRef.current % s.words.length];
     indexRef.current = (indexRef.current + 1) % s.words.length;
     const id = idRef.current++;
-
     setRipple({ id, word, x: e.clientX, y: e.clientY });
     setTimeout(() => {
       setRipple((prev) => (prev?.id === id ? null : prev));
     }, s.duration);
-  }
+  }, []);
+
+  useEffect(() => {
+    document.addEventListener("click", handleClick);
+    return () => document.removeEventListener("click", handleClick);
+  }, [handleClick]);
 
   return (
-    <>
-      {/* 全屏透明背景层 — 只捕捉对空白区域的点击 */}
-      <div
-        className="fixed inset-0 z-0"
-        onClick={handleBgClick}
-      />
-      <AnimatePresence>
-        {ripple && (
-          <motion.span
-            key={ripple.id}
-            initial={{ opacity: 0, scale: 0.4, y: 0 }}
-            animate={{ opacity: 0.7, scale: 1, y: -16 }}
-            exit={{ opacity: 0, scale: 1.1, y: -36 }}
-            transition={{ duration: 0.5, ease: "easeOut" }}
-            className="fixed font-medium text-sm sm:text-base pointer-events-none select-none whitespace-nowrap z-50"
-            style={{
-              left: ripple.x,
-              top: ripple.y,
-              transform: "translate(-50%, -50%)",
-              background: settings.color,
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent",
-            }}
-          >
-            {ripple.word}
-          </motion.span>
-        )}
-      </AnimatePresence>
-    </>
+    <AnimatePresence>
+      {ripple && (
+        <motion.span
+          key={ripple.id}
+          initial={{ opacity: 0, scale: 0.4, y: 0 }}
+          animate={{ opacity: 0.7, scale: 1, y: -16 }}
+          exit={{ opacity: 0, scale: 1.1, y: -36 }}
+          transition={{ duration: 0.5, ease: "easeOut" }}
+          className="fixed font-medium text-sm sm:text-base pointer-events-none select-none whitespace-nowrap z-50"
+          style={{
+            left: ripple.x,
+            top: ripple.y,
+            transform: "translate(-50%, -50%)",
+            background: settings.color,
+            WebkitBackgroundClip: "text",
+            WebkitTextFillColor: "transparent",
+          }}
+        >
+          {ripple.word}
+        </motion.span>
+      )}
+    </AnimatePresence>
   );
 }
