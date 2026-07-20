@@ -43,7 +43,28 @@ export default function ClickWords() {
     return () => window.removeEventListener("click-words-settings-changed", handler);
   }, []);
 
-  // 在 mousedown 阶段（React 介入前）捕获点击目标
+  // pointerdown 更底层，在所有事件之前触发
+  useEffect(() => {
+    const onPointerDown = (e: PointerEvent) => {
+      const target = e.target;
+      if (target instanceof Element) {
+        clickTargetRef.current = target;
+        // 如果目标或祖先有关注能力，标记跳过
+        let node: Element | null = target;
+        while (node) {
+          if (node.getAttribute?.("data-cw-ignore")) {
+            clickTargetRef.current = null;
+            return;
+          }
+          node = node.parentElement;
+        }
+      }
+    };
+    document.addEventListener("pointerdown", onPointerDown, true);
+    return () => document.removeEventListener("pointerdown", onPointerDown, true);
+  }, []);
+
+  // mousedown 备选
   useEffect(() => {
     const onMousedown = (e: MouseEvent) => {
       clickTargetRef.current = e.target instanceof Element ? e.target : null;
@@ -53,6 +74,7 @@ export default function ClickWords() {
   }, []);
 
   const isFocusable = useCallback((el: Element): boolean => {
+    if (el.getAttribute?.("data-cw-ignore")) return true;
     const tag = el.tagName.toLowerCase();
     if (["input", "textarea", "select", "button", "a"].includes(tag)) return true;
     if (el instanceof HTMLElement && el.isContentEditable) return true;
@@ -61,10 +83,11 @@ export default function ClickWords() {
   }, []);
 
   const handleClick = useCallback((e: MouseEvent) => {
-    // 使用 mousedown 阶段捕获的目标（React 无法干扰）
-    const target = clickTargetRef.current;
-    if (target) {
-      let node: Element | null = target;
+    // 双重检测: 1) mousedown 阶段捕获的目标 2) click 阶段的 e.target
+    const targets = [clickTargetRef.current, e.target instanceof Element ? e.target : null];
+    for (const t of targets) {
+      if (!t) continue;
+      let node: Element | null = t;
       while (node) {
         if (isFocusable(node)) return;
         node = node.parentElement;
