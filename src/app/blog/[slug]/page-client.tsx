@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import DOMPurify from "dompurify";
 import { marked } from "marked";
+import { sanitizeContent } from "@/lib/sanitize";
 import { ArrowLeft, Calendar, Clock, Tag, Share2, Heart, Reply, Trash2, User, Send, Copy } from "lucide-react";
 import { AnimatedSection } from "@/components/shared/AnimatedSection";
 import { GlassCard } from "@/components/shared/GlassCard";
@@ -367,10 +368,10 @@ function CommentSection({ slug, isAdmin }: { slug: string; isAdmin: boolean }) {
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">
-                  <span className="font-semibold text-sm">{comment.name}</span>
+                  <span className="font-semibold text-sm">{sanitizeContent(comment.name)}</span>
                   <span className="text-xs text-muted-foreground">{comment.date}</span>
                 </div>
-                <p className="text-sm text-muted-foreground leading-relaxed">{comment.content}</p>
+                <p className="text-sm text-muted-foreground leading-relaxed">{sanitizeContent(comment.content)}</p>
                 <div className="flex items-center gap-3 mt-2">
                   <button onClick={() => toggleLike(comment.id)}
                     className={`flex items-center gap-1 text-xs transition-colors ${isLiked(comment.id) ? "text-red-500" : "text-muted-foreground hover:text-red-500"}`}>
@@ -423,10 +424,10 @@ function BlogReplyList({ replies, parentMsgId, onToggleReply, onAddReply, delete
       {replies.map((reply) => (
         <div key={reply.id} className="ml-4 pl-3 border-l-2 border-border">
           <div className="text-sm">
-            <span className="font-medium text-primary">{reply.name}</span>
+            <span className="font-medium text-primary">{sanitizeContent(reply.name)}</span>
             <span className="text-muted-foreground mx-1">回复</span>
-            <span className="font-medium">{reply.parentName || "..."}</span>
-            <span className="text-muted-foreground">：{reply.content}</span>
+            <span className="font-medium">{sanitizeContent(reply.parentName || "...")}</span>
+            <span className="text-muted-foreground">：{sanitizeContent(reply.content)}</span>
             <span className="text-xs text-muted-foreground ml-2">{reply.date}</span>
           </div>
           <div className="flex items-center gap-3 mt-1 ml-1">

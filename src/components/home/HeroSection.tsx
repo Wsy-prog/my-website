@@ -22,7 +22,6 @@ export function HeroSection() {
             <img
               src="/images/avatar.jpg?v=2"
               alt="王舒毅"
-              loading="lazy"
               className="w-full h-full rounded-full object-cover"
             />
           </div>

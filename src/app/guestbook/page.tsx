@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Send, User, Clock, Heart, Reply, Trash2 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { useIsMounted } from "@/lib/use-is-mounted";
+import { sanitizeContent } from "@/lib/sanitize";
 import { AnimatedSection } from "@/components/shared/AnimatedSection";
 import { GradientText } from "@/components/shared/GradientText";
 import { GlassCard } from "@/components/shared/GlassCard";
@@ -319,13 +320,13 @@ useEffect(() => {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
-                      <span className="font-semibold">{msg.name}</span>
+                      <span className="font-semibold">{sanitizeContent(msg.name)}</span>
                       <span className="text-xs text-muted-foreground flex items-center gap-1">
                         <Clock className="h-3 w-3" /> {msg.date}
                       </span>
                       <span className="text-xs text-muted-foreground ml-auto">#{String(messages.length - i).padStart(2, "0")}</span>
                     </div>
-                    <p className="text-sm text-muted-foreground leading-relaxed">{msg.content}</p>
+                    <p className="text-sm text-muted-foreground leading-relaxed">{sanitizeContent(msg.content)}</p>
                     <div className="flex items-center gap-4 mt-3">
                       <button
                         onClick={() => toggleLike(msg.id)}
@@ -427,10 +428,10 @@ function ReplyList({
       {replies.map((reply) => (
         <div key={reply.id} className={`${depth <= 2 ? "pl-4 border-l-2 border-border" : "pl-2"}`}>
           <div className="text-sm">
-            <span className="font-medium text-primary">{reply.name}</span>
+            <span className="font-medium text-primary">{sanitizeContent(reply.name)}</span>
             <span className="text-muted-foreground mx-1">→</span>
-            <span className="font-medium">{parentName}</span>
-            <span className="text-muted-foreground">：{reply.content}</span>
+            <span className="font-medium">{sanitizeContent(parentName)}</span>
+            <span className="text-muted-foreground">：{sanitizeContent(reply.content)}</span>
             <span className="text-xs text-muted-foreground ml-2">{reply.date}</span>
           </div>
           <div className="flex items-center gap-3 mt-1 ml-1">

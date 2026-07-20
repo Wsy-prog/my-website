@@ -18,6 +18,7 @@ import { getAllMarkers } from "@/lib/travel-store";
 import { loadPhotos, savePhotos, type Photo } from "@/data/photos";
 import { compressAndUpload } from "@/lib/cloudinary";
 import { CardContainer, CardBody, CardItem } from "@/components/ui/3d-card";
+import { UploadProgress } from "@/components/shared/UploadProgress";
 
 const categories = ["全部", "风光", "人像", "视频", "运动", "生活"];
 
@@ -414,12 +415,17 @@ function GalleryPageInner() {
                   </div>
                 )}
               </div>
+              <UploadProgress visible={uploading} label="正在压缩上传..." />
               <Button
                 onClick={handleUpload}
                 className="w-full rounded-xl gap-2 bg-gradient-to-r from-purple-600 to-cyan-500 text-white"
-                disabled={!uploadForm.title.trim() || (!localPreview && !uploadForm.src.trim())}
+                disabled={uploading || !uploadForm.title.trim() || (!localPreview && !uploadForm.src.trim())}
               >
-                <Upload className="h-4 w-4" /> 添加照片
+                {uploading ? (
+                  <><Upload className="h-4 w-4 animate-pulse" /> 上传中...</>
+                ) : (
+                  <><Upload className="h-4 w-4" /> 添加照片</>
+                )}
               </Button>
             </div>
           </DialogContent>

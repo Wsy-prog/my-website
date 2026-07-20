@@ -12,6 +12,7 @@ import type { BlogPost } from "@/data/blog-posts";
 import { getAllMarkers } from "@/lib/travel-store";
 import { compressAndUpload } from "@/lib/cloudinary";
 import { ImagePicker } from "@/components/shared/ImagePicker";
+import { UploadProgress } from "@/components/shared/UploadProgress";
 import RichTextEditor, { type RichTextEditorHandle } from "@/components/editor/RichTextEditor";
 import type { Photo } from "@/data/photos";
 
@@ -108,6 +109,7 @@ function NewBlogPageInner() {
 
   // ImagePicker 弹窗
   const [showCoverImagePicker, setShowCoverImagePicker] = useState(false);
+  const [uploadingCover, setUploadingCover] = useState(false);
 
   // 收集所有已有的图片：摄影画廊照片 + 文章封面 + 背景图片
   useEffect(() => {
@@ -254,11 +256,12 @@ function NewBlogPageInner() {
   async function handleCoverUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    setUploadingCover(true);
     try {
-      setCoverImage("⏳");
       const url = await compressAndUpload(file, 800);
       setCoverImage(url);
     } catch { setCoverImage(null); }
+    setUploadingCover(false);
   }
 
   // 插入图片
@@ -467,6 +470,7 @@ function NewBlogPageInner() {
             </div>
           )}
           <input ref={coverInputRef} type="file" accept="image/*" className="hidden" onChange={handleCoverUpload} />
+          <UploadProgress visible={uploadingCover} label="正在上传封面..." />
         </div>
 
         {/* Meta row */}

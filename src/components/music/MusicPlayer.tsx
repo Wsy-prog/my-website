@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { uploadAudio, compressAndUpload } from "@/lib/cloudinary";
 import { COLOR_PRESETS } from "@/lib/click-words-store";
 import { ImagePicker } from "@/components/shared/ImagePicker";
+import { UploadProgress } from "@/components/shared/UploadProgress";
 
 interface Track {
   title: string;
@@ -161,6 +162,8 @@ export function MusicPlayer() {
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
   const [showCoverPicker, setShowCoverPicker] = useState<number | null>(null);
   const [trackSettings, setTrackSettings] = useState<number | null>(null);
+  const [importingAudio, setImportingAudio] = useState(false);
+  const [importingCoverIdx, setImportingCoverIdx] = useState<number | null>(null);
   const dragRef = useRef({ dragging: false, startX: 0, startY: 0, originX: 0, originY: 0 });
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const musicFileRef = useRef<HTMLInputElement | null>(null);
@@ -319,9 +322,11 @@ export function MusicPlayer() {
     if (currentTrack >= updated.length) setCurrentTrack(Math.max(0, updated.length - 1));
   }
   function importFile(file: File) {
+    setImportingAudio(true);
     (async () => {
       try { const url = await uploadAudio(file); setTracks(t => [...t, { title: file.name.replace(/\.[^.]+$/, ""), artist: "未知艺术家", src: url }]); saveTracks([...tracks, { title: file.name.replace(/\.[^.]+$/, ""), artist: "未知艺术家", src: url }]); } catch {}
       if (musicFileRef.current) musicFileRef.current.value = "";
+      setImportingAudio(false);
     })();
   }
   function uploadLyrics(idx: number, file: File) {
@@ -339,8 +344,10 @@ export function MusicPlayer() {
     setTracks(updated); saveTracks(updated);
   }
   function uploadCover(idx: number, file: File) {
+    setImportingCoverIdx(idx);
     (async () => {
       try { const url = await compressAndUpload(file, 400); setTracks(t => t.map((tr, i) => i === idx ? { ...tr, cover: url } : tr)); saveTracks(tracks.map((tr, i) => i === idx ? { ...tr, cover: url } : tr)); } catch {}
+      setImportingCoverIdx(null);
     })();
   }
   function removeCover(idx: number) {
@@ -473,6 +480,7 @@ export function MusicPlayer() {
                             </label>
                             {track.lyrics && <button onClick={() => removeLyrics(i)} className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-destructive"><X className="h-3 w-3" /></button>}
                             <label className="p-1 rounded cursor-pointer hover:bg-accent text-muted-foreground hover:text-foreground text-[10px]">🖼️ 封面上传<input type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) uploadCover(i, f); }} /></label>
+                            {importingCoverIdx === i && <UploadProgress visible label="上传封面..." />}
                             <button onClick={() => setShowCoverPicker(i)} className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground text-[10px]">🏞 封面选择</button>
                             {track.cover && <button onClick={() => removeCover(i)} className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-destructive"><X className="h-3 w-3" /></button>}
                           </div>
@@ -482,6 +490,7 @@ export function MusicPlayer() {
                   ))}
                 </div>
                 <button onClick={() => musicFileRef.current?.click()} className="w-full mt-3 py-2 rounded-lg border-2 border-dashed border-border hover:border-primary transition-colors text-xs text-muted-foreground hover:text-primary text-center">＋ 添加歌曲</button>
+                <UploadProgress visible={importingAudio} label="正在上传音频..." />
                 <input ref={musicFileRef} type="file" accept="audio/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) importFile(f); }} />
               </div>
             ) : (

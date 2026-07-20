@@ -15,6 +15,7 @@ import { syncSiteDefaults } from "@/lib/site-defaults";
 import { compressAndUpload, uploadToCloudinary } from "@/lib/cloudinary";
 import RockerSwitch from "@/components/shared/RockerSwitch";
 import { ImagePicker } from "@/components/shared/ImagePicker";
+import { UploadProgress } from "@/components/shared/UploadProgress";
 import { loadClickWordsSettings, saveClickWordsSettings, DEFAULT_SETTINGS, COLOR_PRESETS } from "@/lib/click-words-store";
 
 type BgType = "aurora" | "image" | "video" | "none";
@@ -146,6 +147,7 @@ export function SettingsPanel() {
   const [renameValue, setRenameValue] = useState("");
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [bgImgPickerOpen, setBgImgPickerOpen] = useState(false);
+  const [importingBg, setImportingBg] = useState(false);
   const imgFileRef = useRef<HTMLInputElement>(null);
   const videoFileRef = useRef<HTMLInputElement>(null);
   const videoUrlRef = useRef<HTMLInputElement>(null);
@@ -184,6 +186,7 @@ export function SettingsPanel() {
 
   // 导入图片
   async function importImageFile(file: File) {
+    setImportingBg(true);
     try {
       const url = await compressAndUpload(file, 1920);
       const asset: BgAsset = { id: Date.now().toString(36), name: file.name.replace(/\.[^.]+$/, ""), type: "image", src: url };
@@ -191,10 +194,12 @@ export function SettingsPanel() {
       setAssets(updated); saveAssets(updated);
       selectAsset(asset);
     } catch { console.warn("SettingsPanel: upload failed"); }
+    setImportingBg(false);
   }
 
   // 导入视频（本地文件）
   async function importVideoFile(file: File) {
+    setImportingBg(true);
     try {
       const url = await uploadToCloudinary(file);
       const asset: BgAsset = { id: Date.now().toString(36), name: file.name.replace(/\.[^.]+$/, ""), type: "video", src: url };
@@ -202,6 +207,7 @@ export function SettingsPanel() {
       setAssets(updated); saveAssets(updated);
       selectAsset(asset);
     } catch { console.warn("SettingsPanel: upload failed"); }
+    setImportingBg(false);
   }
 
   // 导入视频（URL）
@@ -479,6 +485,7 @@ export function SettingsPanel() {
                     className="w-full py-2 rounded-lg border-2 border-dashed border-border hover:border-primary transition-colors text-xs text-muted-foreground hover:text-primary text-center flex items-center justify-center gap-1">
                     <Video className="h-3.5 w-3.5" /> 导入本地视频
                   </button>
+                  <UploadProgress visible={importingBg} label="正在上传到 Cloudinary..." />
                   <div className="flex gap-1">
                     <Input ref={videoUrlRef} placeholder="或输入视频 URL..." className="h-8 text-xs rounded-lg flex-1"
                       onKeyDown={(e) => { if (e.key === "Enter") importVideoUrl(); }} />
