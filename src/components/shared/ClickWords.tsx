@@ -48,7 +48,7 @@ export default function ClickWords() {
     }
 
     const s = settingsRef.current;
-    if (s.words.length === 0) return;
+    if (!s.enabled || s.words.length === 0) return;
 
     const word = s.words[indexRef.current % s.words.length];
     indexRef.current = (indexRef.current + 1) % s.words.length;

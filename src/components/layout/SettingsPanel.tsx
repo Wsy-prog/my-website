@@ -1074,6 +1074,17 @@ function ClickWordsSettingsDialog() {
             <DialogTitle>🖱️ 点击字体设置</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 mt-2">
+            {/* 开启/关闭 */}
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium">启用点击文字效果</span>
+              <button
+                onClick={() => { setSettings((s) => ({ ...s, enabled: !s.enabled })); setSaved(false); }}
+                className={`relative w-9 h-4 rounded-full transition-colors duration-300 ${settings.enabled ? "bg-primary" : "bg-border"}`}
+              >
+                <span className={`absolute top-0.5 left-0.5 w-3 h-3 rounded-full bg-white shadow-sm transition-transform duration-300 ${settings.enabled ? "translate-x-[18px]" : "translate-x-0"}`} />
+              </button>
+            </div>
+
             {/* Word list */}
             <div>
               <div className="flex items-center justify-between mb-2">

@@ -1,6 +1,5 @@
-const STORAGE_KEY = "click_words_settings";
-
 export interface ClickWordsSettings {
+  enabled: boolean;
   words: string[];
   duration: number; // ms
   color: string;    // CSS gradient value
@@ -25,6 +24,7 @@ export const COLOR_PRESETS: ColorPreset[] = [
 ];
 
 export const DEFAULT_SETTINGS: ClickWordsSettings = {
+  enabled: true,
   words: ["Born", "to", "be", "fantastic"],
   duration: 1000,
   color: COLOR_PRESETS[0].value,
@@ -37,6 +37,7 @@ export function loadClickWordsSettings(): ClickWordsSettings {
     if (raw) {
       const parsed = JSON.parse(raw);
       return {
+        enabled: parsed.enabled !== false,
         words: Array.isArray(parsed.words) && parsed.words.length > 0 ? parsed.words : DEFAULT_SETTINGS.words,
         duration: typeof parsed.duration === "number" && parsed.duration >= 200 ? parsed.duration : DEFAULT_SETTINGS.duration,
         color: typeof parsed.color === "string" && parsed.color ? parsed.color : DEFAULT_SETTINGS.color,
@@ -82,6 +83,7 @@ export async function syncClickWordsFromApi(): Promise<ClickWordsSettings | null
 export function mergeClickWordsFromApi(data: any): ClickWordsSettings | null {
   if (!data) return null;
   const merged = { ...DEFAULT_SETTINGS };
+  merged.enabled = data.enabled !== false;
   if (Array.isArray(data.words) && data.words.length > 0) merged.words = data.words;
   if (typeof data.duration === "number") merged.duration = data.duration;
   if (typeof data.color === "string" && data.color) merged.color = data.color;
