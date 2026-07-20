@@ -121,7 +121,7 @@ export default function GuestbookPage() {
     const syncVisitorCount = async () => {
       try {
         // 原子自增接口（服务端读+写在一次请求完成，无竞态）
-        const res = await fetch("/api/visitor", { method: "POST" });
+        const res = await fetch("/api/visitor", { method: isAdmin ? "GET" : "POST" });
         const json = await res.json();
         if (typeof json.count === "number") {
           setVisitorCount(json.count);

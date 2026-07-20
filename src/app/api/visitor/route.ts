@@ -1,8 +1,8 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
-export async function POST() {
+export async function POST(req: NextRequest) {
   try {
     const { loadFromDb, saveToDb } = await import("@/lib/db");
     const result = await loadFromDb<number>("guestbook_visitor_count");
@@ -12,5 +12,15 @@ export async function POST() {
     return NextResponse.json({ count: next });
   } catch {
     return NextResponse.json({ count: 1 });
+  }
+}
+
+export async function GET() {
+  try {
+    const { loadFromDb } = await import("@/lib/db");
+    const result = await loadFromDb<number>("guestbook_visitor_count");
+    return NextResponse.json({ count: (result?.data as number) || 0 });
+  } catch {
+    return NextResponse.json({ count: 0 });
   }
 }
