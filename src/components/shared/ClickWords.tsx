@@ -4,23 +4,6 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { loadClickWordsSettings, syncClickWordsFromApi, DEFAULT_SETTINGS, type ClickWordsSettings } from "@/lib/click-words-store";
 
-function isInteractive(el: EventTarget | null): boolean {
-  if (!(el instanceof Element)) return false;
-  const tag = el.tagName.toLowerCase();
-
-  // 原生交互元素
-  if (["a", "button", "input", "textarea", "select", "label", "svg", "path", "details", "summary"].includes(tag)) return true;
-
-  // 可编辑区域（contentEditable / 富文本编辑器）
-  if (el instanceof HTMLElement && (el.isContentEditable || el.getAttribute("contenteditable") === "true")) return true;
-
-  // role 属性
-  const role = el.getAttribute("role");
-  if (role && /button|link|dialog|tab|menuitem|option|textbox|combobox|searchbox|slider/.test(role)) return true;
-
-  return false;
-}
-
 export default function ClickWords() {
   const [settings, setSettings] = useState<ClickWordsSettings>(DEFAULT_SETTINGS);
   const [ripple, setRipple] = useState<{ id: number; word: string; x: number; y: number } | null>(null);
@@ -28,6 +11,7 @@ export default function ClickWords() {
   const indexRef = useRef(0);
   const idRef = useRef(0);
   const settingsRef = useRef<ClickWordsSettings>(DEFAULT_SETTINGS);
+  const clickTargetRef = useRef<Element | null>(null);
 
   // keep ref in sync
   useEffect(() => { settingsRef.current = settings; }, [settings]);
@@ -35,11 +19,9 @@ export default function ClickWords() {
   // load settings on mount + sync from API
   useEffect(() => {
     const init = async () => {
-      // 先加载本地
       const local = loadClickWordsSettings();
       setSettings(local);
       settingsRef.current = local;
-      // 再从 API 同步（覆盖本地，实现跨设备同步）
       const remote = await syncClickWordsFromApi();
       if (remote) {
         setSettings(remote);
@@ -61,22 +43,32 @@ export default function ClickWords() {
     return () => window.removeEventListener("click-words-settings-changed", handler);
   }, []);
 
-  const handleClick = useCallback((e: MouseEvent) => {
-    // ===== 兜底检查：点击后焦点是否落在表单控件上（最可靠） =====
-    const active = document.activeElement;
-    if (active && active !== document.body) {
-      const activeTag = active.tagName;
-      if (activeTag === "TEXTAREA" || activeTag === "INPUT" || activeTag === "SELECT") return;
-      if (active instanceof HTMLElement && (active.isContentEditable || active.getAttribute?.("contenteditable"))) return;
-      if (active.getAttribute?.("data-slot")) return;
-    }
+  // 在 mousedown 阶段（React 介入前）捕获点击目标
+  useEffect(() => {
+    const onMousedown = (e: MouseEvent) => {
+      clickTargetRef.current = e.target instanceof Element ? e.target : null;
+    };
+    document.addEventListener("mousedown", onMousedown, true);
+    return () => document.removeEventListener("mousedown", onMousedown, true);
+  }, []);
 
-    // ===== 从点击目标向上遍历 DOM 树 =====
-    let node: Element | null = e.target as Element | null;
-    while (node) {
-      if (isInteractive(node)) return;
-      if (node.getAttribute?.("data-slot") || node.getAttribute?.("contenteditable")) return;
-      node = node.parentElement;
+  const isFocusable = useCallback((el: Element): boolean => {
+    const tag = el.tagName.toLowerCase();
+    if (["input", "textarea", "select", "button", "a"].includes(tag)) return true;
+    if (el instanceof HTMLElement && el.isContentEditable) return true;
+    if (el.getAttribute?.("data-slot") || el.getAttribute?.("contenteditable")) return true;
+    return false;
+  }, []);
+
+  const handleClick = useCallback((e: MouseEvent) => {
+    // 使用 mousedown 阶段捕获的目标（React 无法干扰）
+    const target = clickTargetRef.current;
+    if (target) {
+      let node: Element | null = target;
+      while (node) {
+        if (isFocusable(node)) return;
+        node = node.parentElement;
+      }
     }
 
     const s = settingsRef.current;
@@ -91,7 +83,7 @@ export default function ClickWords() {
     setTimeout(() => {
       setRipple((prev) => (prev?.id === id ? null : prev));
     }, s.duration);
-  }, []);
+  }, [isFocusable]);
 
   useEffect(() => {
     document.addEventListener("click", handleClick);
