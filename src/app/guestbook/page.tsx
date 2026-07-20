@@ -118,44 +118,18 @@ export default function GuestbookPage() {
   }, [messages, loaded]);
 
   useEffect(() => {
-    // 从服务端读取访客计数，如果首次来访则 +1
     const syncVisitorCount = async () => {
       try {
-        const res = await fetch("/api/data/guestbook_visitor_count");
+        // 原子自增接口（服务端读+写在一次请求完成，无竞态）
+        const res = await fetch("/api/visitor", { method: "POST" });
         const json = await res.json();
-        if (json.exists && typeof json.data === "number") {
-          const serverCount = json.data as number;
-          const thisVisit = localStorage.getItem("guestbook_visited");
-          if (!thisVisit) {
-            localStorage.setItem("guestbook_visited", "1");
-            const newCount = serverCount + 1;
-            fetch("/api/data/guestbook_visitor_count", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ data: newCount }),
-            }).catch(() => {});
-            setVisitorCount(newCount);
-          } else {
-            setVisitorCount(serverCount);
-          }
-        } else {
-          const thisVisit = localStorage.getItem("guestbook_visited");
-          if (!thisVisit) {
-            localStorage.setItem("guestbook_visited", "1");
-            fetch("/api/data/guestbook_visitor_count", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ data: 1 }),
-            }).catch(() => {});
-            setVisitorCount(1);
-          } else {
-            setVisitorCount(0); // 数据库被清过，等待重新计数
-          }
+        if (typeof json.count === "number") {
+          setVisitorCount(json.count);
+          return;
         }
-        return; // API 可用时，无论有没有数据都用服务器的结果
-      } catch { /* API 不可用时走下面 localStorage 回退 */ }
+      } catch { /* API 不可用时走 localStorage 回退 */ }
 
-      // 回退方案：API 不可用时用 localStorage
+      // 回退：localStorage 本地计数
       try {
         const stored = localStorage.getItem("guestbook_visitor_count");
         const thisVisit = localStorage.getItem("guestbook_visited");
