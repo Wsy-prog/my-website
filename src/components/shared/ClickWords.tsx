@@ -35,9 +35,11 @@ export default function ClickWords() {
   }, []);
 
   const handleClick = useCallback((e: MouseEvent) => {
-    // 如果点击在 form 内部 → 不触发特效
-    // form 包含所有表单控件（input/textarea/select/button）
-    if ((e.target as Element)?.closest("form")) return;
+    const target = e.target as Element;
+    // 点在了可交互元素上 → 不触发特效
+    // form 包含所有表单控件; 也直接检查 input/textarea/select/contentEditable
+    if (target?.closest("form") ||
+        target?.closest("input, textarea, select, [contenteditable]")) return;
 
     const s = settingsRef.current;
     if (s.words.length === 0) return;
