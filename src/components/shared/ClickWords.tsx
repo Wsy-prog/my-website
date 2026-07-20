@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { loadClickWordsSettings, syncClickWordsFromApi, DEFAULT_SETTINGS, type ClickWordsSettings } from "@/lib/click-words-store";
 
@@ -34,13 +34,10 @@ export default function ClickWords() {
     return () => window.removeEventListener("click-words-settings-changed", handler);
   }, []);
 
-  const handleClick = useCallback((e: MouseEvent) => {
-    const target = e.target as Element;
-    // 点在了可交互元素上 → 不触发特效
-    if (
-      target?.closest("form") ||
-      target?.closest("input, textarea, select, button, a, [contenteditable], [data-slot]")
-    ) return;
+  function handleBgClick(e: React.MouseEvent) {
+    const target = e.target as HTMLElement;
+    // 只有点击到背景层本身上才触发（即没有点中任何子元素）
+    if (target !== e.currentTarget) return;
 
     const s = settingsRef.current;
     if (s.words.length === 0) return;
@@ -49,42 +46,41 @@ export default function ClickWords() {
     indexRef.current = (indexRef.current + 1) % s.words.length;
     const id = idRef.current++;
 
-    // 延迟到下一帧，避免干扰当前点击的焦点行为
-    requestAnimationFrame(() => {
-      setRipple({ id, word, x: e.clientX, y: e.clientY });
-      setTimeout(() => {
-        setRipple((prev) => (prev?.id === id ? null : prev));
-      }, s.duration);
-    });
-  }, []);
-
-  useEffect(() => {
-    document.addEventListener("click", handleClick);
-    return () => document.removeEventListener("click", handleClick);
-  }, [handleClick]);
+    setRipple({ id, word, x: e.clientX, y: e.clientY });
+    setTimeout(() => {
+      setRipple((prev) => (prev?.id === id ? null : prev));
+    }, s.duration);
+  }
 
   return (
-    <AnimatePresence>
-      {ripple && (
-        <motion.span
-          key={ripple.id}
-          initial={{ opacity: 0, scale: 0.4, y: 0 }}
-          animate={{ opacity: 0.7, scale: 1, y: -16 }}
-          exit={{ opacity: 0, scale: 1.1, y: -36 }}
-          transition={{ duration: 0.5, ease: "easeOut" }}
-          className="fixed font-medium text-sm sm:text-base pointer-events-none select-none whitespace-nowrap z-50"
-          style={{
-            left: ripple.x,
-            top: ripple.y,
-            transform: "translate(-50%, -50%)",
-            background: settings.color,
-            WebkitBackgroundClip: "text",
-            WebkitTextFillColor: "transparent",
-          }}
-        >
-          {ripple.word}
-        </motion.span>
-      )}
-    </AnimatePresence>
+    <>
+      {/* 全屏透明背景层 — 只捕捉对空白区域的点击 */}
+      <div
+        className="fixed inset-0 z-0"
+        onClick={handleBgClick}
+      />
+      <AnimatePresence>
+        {ripple && (
+          <motion.span
+            key={ripple.id}
+            initial={{ opacity: 0, scale: 0.4, y: 0 }}
+            animate={{ opacity: 0.7, scale: 1, y: -16 }}
+            exit={{ opacity: 0, scale: 1.1, y: -36 }}
+            transition={{ duration: 0.5, ease: "easeOut" }}
+            className="fixed font-medium text-sm sm:text-base pointer-events-none select-none whitespace-nowrap z-50"
+            style={{
+              left: ripple.x,
+              top: ripple.y,
+              transform: "translate(-50%, -50%)",
+              background: settings.color,
+              WebkitBackgroundClip: "text",
+              WebkitTextFillColor: "transparent",
+            }}
+          >
+            {ripple.word}
+          </motion.span>
+        )}
+      </AnimatePresence>
+    </>
   );
 }
