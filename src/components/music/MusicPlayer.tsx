@@ -284,23 +284,24 @@ export function MusicPlayer() {
   }, []);
 
   // 可视化条 — 永久连接 AudioContext 图，永不 disconnect，只开关读数循环
+  // 在用户首次播放时初始化（createMediaElementSource 必须在用户交互后）
+  const [audioCtxReady, setAudioCtxReady] = useState(false);
   useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
+    if (audioCtxReady || !audioRef.current) return;
     try {
-      if (!audioCtxRef.current) {
-        audioCtxRef.current = new AudioContext();
-        const ctx = audioCtxRef.current;
-        if (ctx.state === "suspended") ctx.resume();
-        mediaSourceRef.current = ctx.createMediaElementSource(audio);
-        const analyser = ctx.createAnalyser();
-        analyser.fftSize = 64;
-        mediaSourceRef.current.connect(analyser);
-        analyser.connect(ctx.destination);
-        analyserRef.current = analyser;
-      }
+      const ctx = new AudioContext();
+      if (ctx.state === "suspended") ctx.resume();
+      const src = ctx.createMediaElementSource(audioRef.current);
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 64;
+      src.connect(analyser);
+      analyser.connect(ctx.destination);
+      audioCtxRef.current = ctx;
+      mediaSourceRef.current = src;
+      analyserRef.current = analyser;
+      setAudioCtxReady(true);
     } catch { /* 浏览器限制 */ }
-  }, []);
+  }, [audioCtxReady, isPlaying]);
 
   // 可视化条 — 开关读数循环（不触碰连接图）
   useEffect(() => {

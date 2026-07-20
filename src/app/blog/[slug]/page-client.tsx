@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import DOMPurify from "dompurify";
 import { marked } from "marked";
-import { ArrowLeft, Calendar, Clock, Tag, Share2, Heart, Reply, Trash2, User, Send } from "lucide-react";
+import { ArrowLeft, Calendar, Clock, Tag, Share2, Heart, Reply, Trash2, User, Send, Copy } from "lucide-react";
 import { AnimatedSection } from "@/components/shared/AnimatedSection";
 import { GlassCard } from "@/components/shared/GlassCard";
 import { GradientText } from "@/components/shared/GradientText";
@@ -15,7 +15,7 @@ import { Separator } from "@/components/ui/separator";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { blogPosts, type BlogPost } from "@/data/blog-posts";
-import { getPostBySlug } from "@/lib/blog-store";
+import { getPostBySlug, loadCustomPostsServer } from "@/lib/blog-store";
 import { useAuth } from "@/lib/auth-context";
 import { useIsMounted } from "@/lib/use-is-mounted";
 import {
@@ -43,6 +43,7 @@ export default function BlogPostPage() {
   const [form, setForm] = useState({ name: "", content: "" });
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
   const [likedIds, setLikedIds] = useState<number[]>([]);
+  const [shareCopied, setShareCopied] = useState(false);
 
   useEffect(() => {
     const saved = JSON.parse(localStorage.getItem("blog_comment_liked") || "[]") as number[];
@@ -67,6 +68,14 @@ export default function BlogPostPage() {
       found = blogPosts.find((p) => p.slug === slug) || null;
     }
     setPost(found ?? undefined);
+    // 如果本地缓存没找到，从 API 拉取
+    if (!found) {
+      loadCustomPostsServer().then(posts => {
+        if (!posts.length) return;
+        const apiFound = posts.find(p => p.slug === slug);
+        if (apiFound) setPost(apiFound);
+      });
+    }
   }, [slug]);
 
   // 评论变化时自动保存
@@ -221,8 +230,19 @@ export default function BlogPostPage() {
       {/* Share button */}
       <AnimatedSection delay={0.4} className="mt-12">
         <div className="flex items-center justify-between">
-          <Button variant="outline" className="gap-2 rounded-full">
-            <Share2 className="h-4 w-4" /> 分享文章
+          <Button
+            variant="outline"
+            className="gap-2 rounded-full"
+            onClick={() => {
+              const url = window.location.href;
+              navigator.clipboard.writeText(url).then(() => {
+                setShareCopied(true);
+                setTimeout(() => setShareCopied(false), 2000);
+              }).catch(() => {});
+            }}
+          >
+            {shareCopied ? <Copy className="h-4 w-4" /> : <Share2 className="h-4 w-4" />}
+            {shareCopied ? "已复制链接" : "分享文章"}
           </Button>
         </div>
 

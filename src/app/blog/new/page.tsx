@@ -2,16 +2,10 @@
 
 import { useState, useRef, useEffect, useCallback, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { motion } from "framer-motion";
-import {
-  Bold, Italic, Underline, List, ListOrdered,
-  ImageIcon, Smile, ArrowLeft, Send, Quote, Trash2, Undo2, Redo2,
-  Images, Code, Link, Save, Upload,
-} from "lucide-react";
+import { ArrowLeft, Send, Trash2, Save, ImageIcon, Images } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { saveCustomPost, loadCustomPosts, deleteCustomPost } from "@/lib/blog-store";
 import { useAuth } from "@/lib/auth-context";
 import type { BlogPost } from "@/data/blog-posts";
