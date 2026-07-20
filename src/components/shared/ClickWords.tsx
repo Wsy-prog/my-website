@@ -35,8 +35,6 @@ export default function ClickWords() {
   }, []);
 
   const handleClick = useCallback((e: MouseEvent) => {
-    // 留言板页面完全禁用点击特效
-    if (window.location.pathname === "/guestbook") return;
     // 检查事件路径(e.composedPath)中的每一个节点，看是否有表单控件
     const path = e.composedPath?.() || [];
     for (const el of path) {

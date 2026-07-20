@@ -4,8 +4,6 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Send, User, Clock, Heart, Reply, Trash2 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
-import { useIsMounted } from "@/lib/use-is-mounted";
-import { sanitizeContent } from "@/lib/sanitize";
 import { AnimatedSection } from "@/components/shared/AnimatedSection";
 import { GradientText } from "@/components/shared/GradientText";
 import { GlassCard } from "@/components/shared/GlassCard";
@@ -34,23 +32,18 @@ interface Message {
 
 const GUESTBOOK_KEY = "guestbook_messages";
 
-// 加载留言（去掉 UI 状态字段）
 function loadMessages(): Message[] {
   if (typeof window === "undefined") return [];
   try {
     const raw = localStorage.getItem(GUESTBOOK_KEY);
     if (!raw) return [];
     const saved = JSON.parse(raw) as Message[];
-    // 给每条加回 UI 状态
     const hydrate = (msgs: (Message | ReplyMsg)[]): (Message | ReplyMsg)[] =>
       msgs.map((m) => ({ ...m, showReplyForm: false, replies: hydrate(m.replies) as ReplyMsg[] }));
     return hydrate(saved) as Message[];
-  } catch {
-    return [];
-  }
+  } catch { return []; }
 }
 
-// 保存留言（去掉 UI 状态字段，同步到服务端）
 function saveMessages(msgs: Message[]) {
   if (typeof window === "undefined") return;
   const strip = (ms: (Message | ReplyMsg)[]): any[] =>
@@ -58,16 +51,14 @@ function saveMessages(msgs: Message[]) {
   const data = strip(msgs);
   try {
     localStorage.setItem(GUESTBOOK_KEY, JSON.stringify(data));
-    // 同步到服务端
     fetch("/api/data/guestbook_messages", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ data }),
     }).catch(() => {});
-  } catch { /* quota exceeded */ }
+  } catch { /* quota */ }
 }
 
-// Helper: find a reply by id deep in the tree, update it
 function updateReplyDeep(replies: ReplyMsg[], id: number, updater: (r: ReplyMsg) => ReplyMsg): ReplyMsg[] {
   return replies.map((r) => {
     if (r.id === id) return updater(r);
@@ -86,9 +77,7 @@ function addReplyDeep(replies: ReplyMsg[], parentId: number, newReply: ReplyMsg)
 
 function getLikedIds(): number[] {
   if (typeof window === "undefined") return [];
-  try {
-    return JSON.parse(localStorage.getItem("guestbook_liked") || "[]");
-  } catch { return []; }
+  try { return JSON.parse(localStorage.getItem("guestbook_liked") || "[]"); } catch { return []; }
 }
 
 function setLikedIds(ids: number[]) {
@@ -98,19 +87,16 @@ function setLikedIds(ids: number[]) {
 
 export default function GuestbookPage() {
   const { isAdmin } = useAuth();
-  const isMounted = useIsMounted();
   const [messages, setMessages] = useState<Message[]>([]);
   const [form, setForm] = useState({ name: "", content: "" });
-  const [visitorCount, setVisitorCount] = useState<number | null>(null);
+  const [visitorCount, setVisitorCount] = useState(0);
   const [loaded, setLoaded] = useState(false);
 
-  // 首次加载：从服务端同步留言（覆盖本地）
   useEffect(() => {
     const sync = async () => {
       try {
         const res = await fetch("/api/data/guestbook_messages");
         const json = await res.json();
-        if (!isMounted()) return;
         if (json.exists && Array.isArray(json.data)) {
           localStorage.setItem(GUESTBOOK_KEY, JSON.stringify(json.data));
           const hydrate = (msgs: any[]): Message[] =>
@@ -120,79 +106,40 @@ export default function GuestbookPage() {
           setMessages(loadMessages());
         }
       } catch {
-        if (!isMounted()) return;
         if (localStorage.getItem(GUESTBOOK_KEY)) setMessages(loadMessages());
       }
-      if (isMounted()) setLoaded(true);
+      setLoaded(true);
     };
     sync();
   }, []);
 
-  // 留言变化时自动保存（跳过首次加载）
   useEffect(() => {
-    if (loaded) {
-      saveMessages(messages);
-    }
+    if (loaded) saveMessages(messages);
   }, [messages, loaded]);
 
-useEffect(() => {
-  // 从服务端读取访客计数，如果首次来访则 +1
-  const syncVisitorCount = async () => {
-    try {
-      const res = await fetch("/api/data/guestbook_visitor_count");
-      const json = await res.json();
-      if (json.exists && typeof json.data === "number") {
-        const serverCount = json.data as number;
+  useEffect(() => {
+    const stored = localStorage.getItem("guestbook_visitor_count");
+    const thisVisit = localStorage.getItem("guestbook_visited");
+    let count = stored ? parseInt(stored, 10) : 0;
+    if (!thisVisit) {
+      count += 1;
+      localStorage.setItem("guestbook_visited", "1");
+      localStorage.setItem("guestbook_visitor_count", String(count));
+    }
+    setVisitorCount(count);
+  }, []);
 
-        // 检查是否已来访过
-        const thisVisit = localStorage.getItem("guestbook_visited");
-        if (!thisVisit) {
-          // 首次来访：计数 +1
-          localStorage.setItem("guestbook_visited", "1");
-          const newCount = serverCount + 1;
-          // 异步 POST 新计数
-          fetch("/api/data/guestbook_visitor_count", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ data: newCount }),
-          }).catch(() => {});
-          setVisitorCount(newCount);
-        } else {
-          setVisitorCount(serverCount);
-        }
-      } else {
-        // 数据库无记录，首次来访
-        const thisVisit = localStorage.getItem("guestbook_visited");
-        if (!thisVisit) {
-          localStorage.setItem("guestbook_visited", "1");
-          fetch("/api/data/guestbook_visitor_count", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ data: 1 }),
-          }).catch(() => {});
-          setVisitorCount(1);
-        } else {
-          setVisitorCount(0);
-        }
-      }
-    } catch { console.warn("guestbook: save failed"); }
-  };
-  syncVisitorCount();
-}, []);
   const [likedIds, setLikedIdsState] = useState<number[]>([]);
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
 
   function handleDelete(id: number) {
-    // 删除顶层消息或回复
     const removeReplyDeep = (replies: ReplyMsg[]): ReplyMsg[] =>
       replies.filter(r => r.id !== id).map(r => ({ ...r, replies: removeReplyDeep(r.replies) }));
     setMessages(messages.filter(m => m.id !== id).map(m => ({ ...m, replies: removeReplyDeep(m.replies) })));
     setDeleteTarget(null);
   }
 
-  useEffect(() => {
-    setLikedIdsState(getLikedIds());
-  }, []);
+  useEffect(() => { setLikedIdsState(getLikedIds()); }, []);
 
   const isLiked = (id: number) => likedIds.includes(id);
 
@@ -248,12 +195,10 @@ useEffect(() => {
       showReplyForm: false,
     };
     if (parentReplyId === null) {
-      // Reply to top-level message
       setMessages(messages.map((m) =>
         m.id === parentMsgId ? { ...m, replies: [...m.replies, reply], showReplyForm: false } : m
       ));
     } else {
-      // Reply to another reply
       setMessages(messages.map((m) => {
         if (m.id !== parentMsgId) return m;
         return { ...m, replies: addReplyDeep(m.replies, parentReplyId, reply) };
@@ -268,7 +213,7 @@ useEffect(() => {
         <p className="text-muted-foreground">留下你的足迹，说点什么吧</p>
         <div className="inline-flex items-center gap-2 mt-4 px-4 py-2 rounded-full bg-primary/10 text-sm">
           <span>👀 已有</span>
-          <span className="font-bold text-primary">{visitorCount !== null ? visitorCount.toLocaleString() : "..."}</span>
+          <span className="font-bold text-primary">{visitorCount.toLocaleString()}</span>
           <span>位访客来过了</span>
         </div>
       </AnimatedSection>
@@ -305,121 +250,105 @@ useEffect(() => {
 
       {/* Messages */}
       <div className="space-y-4">
-        <AnimatePresence>
-          {messages.map((msg, i) => (
-            <motion.div
-              key={msg.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.05 }}
-            >
-              <GlassCard>
-                <div className="flex gap-4">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-cyan-400 flex items-center justify-center shrink-0">
-                    <User className="h-5 w-5 text-white" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="font-semibold">{sanitizeContent(msg.name)}</span>
-                      <span className="text-xs text-muted-foreground flex items-center gap-1">
-                        <Clock className="h-3 w-3" /> {msg.date}
-                      </span>
-                      <span className="text-xs text-muted-foreground ml-auto">#{String(messages.length - i).padStart(2, "0")}</span>
+        {messages.length === 0 ? (
+          <p className="text-center text-muted-foreground py-10">还没有留言，来写第一条吧</p>
+        ) : (
+          <AnimatePresence>
+            {messages.map((msg, i) => (
+              <motion.div
+                key={msg.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.05 }}
+              >
+                <GlassCard>
+                  <div className="flex gap-4">
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-cyan-400 flex items-center justify-center shrink-0">
+                      <User className="h-5 w-5 text-white" />
                     </div>
-                    <p className="text-sm text-muted-foreground leading-relaxed">{sanitizeContent(msg.content)}</p>
-                    <div className="flex items-center gap-4 mt-3">
-                      <button
-                        onClick={() => toggleLike(msg.id)}
-                        className={`flex items-center gap-1 text-xs transition-colors ${
-                          isLiked(msg.id)
-                            ? "text-red-500 hover:text-red-400"
-                            : "text-muted-foreground hover:text-red-500"
-                        }`}
-                      >
-                        <Heart className={`h-3 w-3 ${isLiked(msg.id) ? "fill-red-500" : ""}`} /> {msg.likes}
-                      </button>
-                      <button
-                        onClick={() => toggleReplyForm(msg.id, true)}
-                        className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"
-                      >
-                        <Reply className="h-3 w-3" /> 回复
-                        {msg.replies.length > 0 && ` (${msg.replies.length})`}
-                      </button>
-                      {isAdmin && deleteTarget === msg.id ? (
-                        <div className="flex items-center gap-1 ml-auto">
-                          <button onClick={() => handleDelete(msg.id)} className="text-[10px] text-destructive hover:underline">确认删除</button>
-                          <button onClick={() => setDeleteTarget(null)} className="text-[10px] text-muted-foreground hover:underline">取消</button>
-                        </div>
-                      ) : isAdmin ? (
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="font-semibold">{msg.name}</span>
+                        <span className="text-xs text-muted-foreground flex items-center gap-1">
+                          <Clock className="h-3 w-3" /> {msg.date}
+                        </span>
+                        <span className="text-xs text-muted-foreground ml-auto">#{String(messages.length - i).padStart(2, "0")}</span>
+                      </div>
+                      <p className="text-sm text-muted-foreground leading-relaxed">{msg.content}</p>
+                      <div className="flex items-center gap-4 mt-3">
                         <button
-                          onClick={() => setDeleteTarget(msg.id)}
-                          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-destructive transition-colors ml-auto"
+                          onClick={() => toggleLike(msg.id)}
+                          className={`flex items-center gap-1 text-xs transition-colors ${
+                            isLiked(msg.id) ? "text-red-500 hover:text-red-400" : "text-muted-foreground hover:text-red-500"
+                          }`}
                         >
-                          <Trash2 className="h-3 w-3" />
+                          <Heart className={`h-3 w-3 ${isLiked(msg.id) ? "fill-red-500" : ""}`} /> {msg.likes}
                         </button>
-                      ) : null}
-                    </div>
-
-                    {/* Nested Replies */}
-                    <ReplyList
-                      replies={msg.replies}
-                      parentMsgId={msg.id}
-                      parentName={msg.name}
-                      depth={1}
-                      onToggleReply={(replyId) => toggleReplyForm(replyId, false, msg.id)}
-                      onAddReply={(parentId, name, content) => addReply(msg.id, parentId, name, content)}
-                      deleteTarget={deleteTarget}
-                      setDeleteTarget={setDeleteTarget}
-                      onDeleteConfirm={handleDelete}
-                    />
-
-                    {/* Reply Form (top level) */}
-                    <AnimatePresence>
-                      {msg.showReplyForm && (
-                        <motion.div
-                          initial={{ opacity: 0, height: 0 }}
-                          animate={{ opacity: 1, height: "auto" }}
-                          exit={{ opacity: 0, height: 0 }}
-                          className="mt-3 overflow-hidden"
+                        <button
+                          onClick={() => toggleReplyForm(msg.id, true)}
+                          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"
                         >
-                          <ReplyForm
-                            onSubmit={(name, content) => addReply(msg.id, null, name, content)}
-                            parentName={msg.name}
-                          />
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
+                          <Reply className="h-3 w-3" /> 回复{msg.replies.length > 0 && ` (${msg.replies.length})`}
+                        </button>
+                        {isAdmin && deleteTarget === msg.id ? (
+                          <div className="flex items-center gap-1 ml-auto">
+                            <button onClick={() => handleDelete(msg.id)} className="text-[10px] text-destructive hover:underline">确认删除</button>
+                            <button onClick={() => setDeleteTarget(null)} className="text-[10px] text-muted-foreground hover:underline">取消</button>
+                          </div>
+                        ) : isAdmin ? (
+                          <button onClick={() => setDeleteTarget(msg.id)} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-destructive transition-colors ml-auto">
+                            <Trash2 className="h-3 w-3" />
+                          </button>
+                        ) : null}
+                      </div>
+
+                      <ReplyList
+                        replies={msg.replies}
+                        parentMsgId={msg.id}
+                        parentName={msg.name}
+                        depth={1}
+                        onToggleReply={(replyId) => toggleReplyForm(replyId, false, msg.id)}
+                        onAddReply={(parentId, name, content) => addReply(msg.id, parentId, name, content)}
+                        deleteTarget={deleteTarget}
+                        setDeleteTarget={setDeleteTarget}
+                        onDeleteConfirm={handleDelete}
+                      />
+
+                      <AnimatePresence>
+                        {msg.showReplyForm && (
+                          <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: "auto" }}
+                            exit={{ opacity: 0, height: 0 }}
+                            className="mt-3 overflow-hidden"
+                          >
+                            <ReplyForm
+                              onSubmit={(name, content) => addReply(msg.id, null, name, content)}
+                              parentName={msg.name}
+                            />
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
                   </div>
-                </div>
-              </GlassCard>
-            </motion.div>
-          ))}
-        </AnimatePresence>
+                </GlassCard>
+              </motion.div>
+            ))}
+          </AnimatePresence>
+        )}
       </div>
     </div>
   );
 }
 
 function ReplyList({
-  replies,
-  parentMsgId,
-  parentName,
-  depth,
-  onToggleReply,
-  onAddReply,
-  deleteTarget,
-  setDeleteTarget,
-  onDeleteConfirm,
+  replies, parentMsgId, parentName, depth,
+  onToggleReply, onAddReply, deleteTarget, setDeleteTarget, onDeleteConfirm,
 }: {
-  replies: ReplyMsg[];
-  parentMsgId: number;
-  parentName: string;
-  depth: number;
+  replies: ReplyMsg[]; parentMsgId: number; parentName: string; depth: number;
   onToggleReply: (replyId: number) => void;
   onAddReply: (parentReplyId: number, name: string, content: string) => void;
-  deleteTarget: number | null;
-  setDeleteTarget: (id: number | null) => void;
-  onDeleteConfirm: (id: number) => void;
+  deleteTarget: number | null; setDeleteTarget: (id: number | null) => void; onDeleteConfirm: (id: number) => void;
 }) {
   const { isAdmin } = useAuth();
   if (replies.length === 0) return null;
@@ -428,17 +357,14 @@ function ReplyList({
       {replies.map((reply) => (
         <div key={reply.id} className={`${depth <= 2 ? "pl-4 border-l-2 border-border" : "pl-2"}`}>
           <div className="text-sm">
-            <span className="font-medium text-primary">{sanitizeContent(reply.name)}</span>
+            <span className="font-medium text-primary">{reply.name}</span>
             <span className="text-muted-foreground mx-1">→</span>
-            <span className="font-medium">{sanitizeContent(parentName)}</span>
-            <span className="text-muted-foreground">：{sanitizeContent(reply.content)}</span>
+            <span className="font-medium">{parentName}</span>
+            <span className="text-muted-foreground">：{reply.content}</span>
             <span className="text-xs text-muted-foreground ml-2">{reply.date}</span>
           </div>
           <div className="flex items-center gap-3 mt-1 ml-1">
-            <button
-              onClick={() => onToggleReply(reply.id)}
-              className="text-xs text-muted-foreground hover:text-primary transition-colors"
-            >
+            <button onClick={() => onToggleReply(reply.id)} className="text-xs text-muted-foreground hover:text-primary transition-colors">
               <Reply className="h-3 w-3 inline mr-0.5" /> 回复
             </button>
             {isAdmin && deleteTarget === reply.id ? (
@@ -452,33 +378,15 @@ function ReplyList({
               </button>
             ) : null}
           </div>
-
-          {/* Nested replies */}
           <ReplyList
-            replies={reply.replies}
-            parentMsgId={parentMsgId}
-            parentName={reply.name}
-            depth={depth + 1}
-            onToggleReply={onToggleReply}
-            onAddReply={onAddReply}
-            deleteTarget={deleteTarget}
-            setDeleteTarget={setDeleteTarget}
-            onDeleteConfirm={onDeleteConfirm}
+            replies={reply.replies} parentMsgId={parentMsgId} parentName={reply.name} depth={depth + 1}
+            onToggleReply={onToggleReply} onAddReply={onAddReply}
+            deleteTarget={deleteTarget} setDeleteTarget={setDeleteTarget} onDeleteConfirm={onDeleteConfirm}
           />
-
-          {/* Reply form for this reply */}
           <AnimatePresence>
             {reply.showReplyForm && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: "auto" }}
-                exit={{ opacity: 0, height: 0 }}
-                className="mt-2 overflow-hidden"
-              >
-                <ReplyForm
-                  onSubmit={(name, content) => onAddReply(reply.id, name, content)}
-                  parentName={reply.name}
-                />
+              <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="mt-2 overflow-hidden">
+                <ReplyForm onSubmit={(name, content) => onAddReply(reply.id, name, content)} parentName={reply.name} />
               </motion.div>
             )}
           </AnimatePresence>
@@ -491,7 +399,6 @@ function ReplyList({
 function ReplyForm({ onSubmit, parentName }: { onSubmit: (name: string, content: string) => void; parentName: string }) {
   const [name, setName] = useState("");
   const [content, setContent] = useState("");
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !content.trim()) return;
@@ -499,28 +406,11 @@ function ReplyForm({ onSubmit, parentName }: { onSubmit: (name: string, content:
     setName("");
     setContent("");
   };
-
   return (
     <form onSubmit={handleSubmit} className="flex gap-2 items-start">
-      <Input
-        placeholder="你的昵称"
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        required
-        className="rounded-xl w-28 text-sm h-8"
-        maxLength={20}
-      />
-      <Input
-        placeholder={`回复 ${parentName}...`}
-        value={content}
-        onChange={(e) => setContent(e.target.value)}
-        required
-        className="rounded-xl flex-1 text-sm h-8"
-        maxLength={200}
-      />
-      <Button type="submit" size="sm" className="rounded-xl h-8 shrink-0">
-        <Send className="h-3 w-3" />
-      </Button>
+      <Input placeholder="你的昵称" value={name} onChange={(e) => setName(e.target.value)} required className="rounded-xl w-28 text-sm h-8" maxLength={20} />
+      <Input placeholder={`回复 ${parentName}...`} value={content} onChange={(e) => setContent(e.target.value)} required className="rounded-xl flex-1 text-sm h-8" maxLength={200} />
+      <Button type="submit" size="sm" className="rounded-xl h-8 shrink-0"><Send className="h-3 w-3" /></Button>
     </form>
   );
 }
