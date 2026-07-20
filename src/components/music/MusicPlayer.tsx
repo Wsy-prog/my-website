@@ -285,9 +285,12 @@ export function MusicPlayer() {
 
   // 可视化条 — 永久连接 AudioContext 图，永不 disconnect，只开关读数循环
   // 在用户首次播放时初始化（createMediaElementSource 必须在用户交互后）
-  // 可视化条 — 挂载时建立永久音频图（不依赖用户交互），永不 disconnect
+  // 可视化条 — 懒初始化：只在用户开启可视化条时创建音频图（此时浏览器已交互）
   useEffect(() => {
-    if (audioCtxRef.current || !audioRef.current) return;
+    if (!showVisualizer || audioCtxRef.current || !audioRef.current) {
+      if (!showVisualizer) { cancelAnimationFrame(animFrameRef.current); setVisData([]); }
+      return;
+    }
     try {
       const ctx = new AudioContext();
       const src = ctx.createMediaElementSource(audioRef.current);
@@ -295,19 +298,15 @@ export function MusicPlayer() {
       analyser.fftSize = 64;
       src.connect(analyser);
       analyser.connect(ctx.destination);
+      if (ctx.state === "suspended") ctx.resume();
       audioCtxRef.current = ctx;
       mediaSourceRef.current = src;
       analyserRef.current = analyser;
+      // 开始读数
+      const buf = new Uint8Array(analyser.frequencyBinCount);
+      const read = () => { analyser.getByteFrequencyData(buf); setVisData(Array.from(buf.slice(0, 30))); animFrameRef.current = requestAnimationFrame(read); };
+      read();
     } catch {}
-  }, []);
-
-  // 可视化条 — 开关读数循环
-  useEffect(() => {
-    const a = analyserRef.current;
-    if (!a || !showVisualizer) { cancelAnimationFrame(animFrameRef.current); setVisData([]); return; }
-    const buf = new Uint8Array(a.frequencyBinCount);
-    const read = () => { a.getByteFrequencyData(buf); setVisData(Array.from(buf.slice(0, 30))); animFrameRef.current = requestAnimationFrame(read); };
-    read();
     return () => cancelAnimationFrame(animFrameRef.current);
   }, [showVisualizer]);
 
