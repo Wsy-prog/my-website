@@ -1080,7 +1080,7 @@ function ClickWordsSettingsDialog() {
               </div>
               <div className="space-y-1.5 max-h-48 overflow-y-auto">
                 {settings.words.map((w, i) => (
-                  <div key={w + "-" + i} className="flex items-center gap-1.5">
+                  <div key={i} className="flex items-center gap-1.5">
                     <Input
                       value={w}
                       onChange={(e) => updateWord(i, e.target.value)}
