@@ -10,6 +10,7 @@ export default function ClickWords() {
   const indexRef = useRef(0);
   const idRef = useRef(0);
   const settingsRef = useRef<ClickWordsSettings>(DEFAULT_SETTINGS);
+  const mousedownOnForm = useRef(false);
 
   useEffect(() => { settingsRef.current = settings; }, [settings]);
 
@@ -34,12 +35,24 @@ export default function ClickWords() {
     return () => window.removeEventListener("click-words-settings-changed", handler);
   }, []);
 
+  // mousedown 比 click 先触发，在这里标记点击是否落在表单控件上
+  useEffect(() => {
+    const onMouseDown = (e: MouseEvent) => {
+      const target = e.target as Element;
+      mousedownOnForm.current = !!(
+        target?.closest("input, textarea, select, [data-slot], button, a") ||
+        target?.closest("form")
+      );
+    };
+    document.addEventListener("mousedown", onMouseDown);
+    return () => document.removeEventListener("mousedown", onMouseDown);
+  }, []);
+
   const handleClick = useCallback((e: MouseEvent) => {
-    // 点击后检查是否聚焦到了输入框 — 如果是则说明点击的是表单，跳过特效
-    if (e.target && document.activeElement) {
-      const active = document.activeElement;
-      const tag = active.tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || active.hasAttribute("contenteditable")) return;
+    // mousedown 时已标记为表单控件 → 跳过
+    if (mousedownOnForm.current) {
+      mousedownOnForm.current = false;
+      return;
     }
 
     const s = settingsRef.current;
