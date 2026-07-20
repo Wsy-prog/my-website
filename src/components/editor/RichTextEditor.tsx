@@ -535,15 +535,6 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>(
           <EditorContent editor={editor} />
         </div>
 
-        {/* 隐藏的文件输入 */}
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          className="hidden"
-          onChange={insertImage}
-        />
-
         {/* 已有图片选择 */}
         <ImagePicker
           open={showInlineImagePicker}
