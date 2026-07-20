@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { loadClickWordsSettings, syncClickWordsFromApi, DEFAULT_SETTINGS, type ClickWordsSettings } from "@/lib/click-words-store";
 
 function isInteractive(el: EventTarget | null): boolean {
-  if (!el || !(el instanceof Element)) return true;
+  if (!(el instanceof Element)) return false;
   const tag = el.tagName.toLowerCase();
 
   // 原生交互元素
@@ -17,12 +17,6 @@ function isInteractive(el: EventTarget | null): boolean {
   // role 属性
   const role = el.getAttribute("role");
   if (role && /button|link|dialog|tab|menuitem|option|textbox|combobox|searchbox|slider/.test(role)) return true;
-
-  // 检查祖先链：是否有交互元素 / 表单控件 / data-slot 组件
-  if (el.closest("button, a, input, textarea, select, [contenteditable], details, summary, [role='button'], [role='link'], [role='dialog'], [role='tab'], [role='textbox'], .cursor-pointer, [data-slot], [data-sidebar], [data-state]")) return true;
-
-  // Radix Portal / 弹出层
-  if (el.closest("[data-radix-popper-content-wrapper], [data-radix-portal]")) return true;
 
   return false;
 }
@@ -68,10 +62,12 @@ export default function ClickWords() {
   }, []);
 
   const handleClick = useCallback((e: MouseEvent) => {
-    // 检查完整事件路径（含 Shadow DOM），路径中任一元素是交互式则跳过
-    const path = e.composedPath();
-    for (const el of path) {
-      if (isInteractive(el)) return;
+    // 从点击目标向上遍历 DOM 树，检查是否有交互元素
+    let node: Element | null = e.target as Element | null;
+    while (node) {
+      if (isInteractive(node)) return;
+      if (node.getAttribute?.("data-slot") || node.getAttribute?.("contenteditable")) return;
+      node = node.parentElement;
     }
 
     const s = settingsRef.current;
