@@ -292,6 +292,7 @@ useEffect(() => {
               required
               className="rounded-xl min-h-[120px]"
               maxLength={500}
+              style={{ minHeight: "120px" }}
             />
             <div className="flex justify-between items-center">
               <span className="text-xs text-muted-foreground">{form.content.length}/500</span>
