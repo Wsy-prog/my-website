@@ -82,16 +82,28 @@ export default function ClickWords() {
     return false;
   }, []);
 
-  const handleClick = useCallback((e: MouseEvent) => {
-    // 双重检测: 1) mousedown 阶段捕获的目标 2) click 阶段的 e.target
-    const targets = [clickTargetRef.current, e.target instanceof Element ? e.target : null];
-    for (const t of targets) {
-      if (!t) continue;
-      let node: Element | null = t;
+  // 通过指针坐标判断是否在交互元素区域
+  function isOverFocusable(x: number, y: number): boolean {
+    try {
+      const el = document.elementFromPoint(x, y);
+      if (!el) return false;
+      let node = el instanceof Element ? el : null;
       while (node) {
-        if (isFocusable(node)) return;
+        if (isFocusable(node)) return true;
         node = node.parentElement;
       }
+    } catch { /* ignore */ }
+    return false;
+  }
+
+  const handleClick = useCallback((e: MouseEvent) => {
+    // 1) 检查点击坐标下方的元素（elementFromPoint 最准确）
+    if (isOverFocusable(e.clientX, e.clientY)) return;
+
+    // 2) 检查当前焦点
+    const active = document.activeElement;
+    if (active && active !== document.body) {
+      if (active.getAttribute?.("data-cw-ignore") || active.getAttribute?.("data-slot")) return;
     }
 
     const s = settingsRef.current;
