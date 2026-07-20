@@ -274,7 +274,8 @@ useEffect(() => {
       </AnimatedSection>
 
       {/* Message Form */}
-      <div className="rounded-2xl border border-border/50 bg-background/50 backdrop-blur-sm p-6 mb-10 shadow-sm">
+      <AnimatedSection delay={0.1}>
+        <GlassCard className="mb-10">
           <form onSubmit={handleSubmit} className="space-y-4">
             <Input
               placeholder="你的昵称"
@@ -289,9 +290,8 @@ useEffect(() => {
               value={form.content}
               onChange={(e) => setForm({ ...form, content: e.target.value })}
               required
-              className="rounded-xl min-h-[120px]"
+              className="rounded-xl min-h-[100px]"
               maxLength={500}
-              style={{ minHeight: "120px" }}
             />
             <div className="flex justify-between items-center">
               <span className="text-xs text-muted-foreground">{form.content.length}/500</span>
@@ -300,7 +300,8 @@ useEffect(() => {
               </Button>
             </div>
           </form>
-        </div>
+        </GlassCard>
+      </AnimatedSection>
 
       {/* Messages */}
       <div className="space-y-4">
