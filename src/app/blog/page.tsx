@@ -281,8 +281,9 @@ function BlogPageInner() {
       {viewMode === "list" && (
         <div className="grid md:grid-cols-2 gap-6">
           {filtered.map((post, i) => (
-            <GlassCard key={post.slug} delay={i * 0.1} className="h-full flex flex-col relative group/card">
-              <Link href={`/blog/${post.slug}`} className="flex-1">
+            <Link key={post.slug} href={`/blog/${post.slug}`} className="block h-full">
+            <GlassCard delay={i * 0.1} className="h-full flex flex-col relative group/card cursor-pointer">
+              <div className="flex-1">
                 {post.coverImage && (
                   <div className="w-full h-36 rounded-xl overflow-hidden mb-3">
                     <img src={post.coverImage} alt={post.title} loading="lazy" className="w-full h-full object-cover"
@@ -307,9 +308,9 @@ function BlogPageInner() {
                   <span className="flex items-center gap-1"><Calendar className="h-3 w-3" /> {post.date}</span>
                   <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> {post.readTime}</span>
                 </div>
-              </Link>
+              </div>
               {isAdmin && (
-                <div className="absolute bottom-2 right-2 flex gap-1 opacity-0 group-hover/card:opacity-100 group-focus-within/card:opacity-100 transition-opacity">
+                <div className="absolute bottom-2 right-2 flex gap-1 opacity-0 group-hover/card:opacity-100 group-focus-within/card:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
                   <Link href={`/blog/new?edit=${post.slug}`} onClick={(e) => e.stopPropagation()}>
                     <Button variant="ghost" size="icon" className="h-7 w-7 rounded-full">
                       <Pencil className="h-3 w-3" />
@@ -330,6 +331,7 @@ function BlogPageInner() {
                 </div>
               )}
             </GlassCard>
+            </Link>
           ))}
         </div>
       )}
