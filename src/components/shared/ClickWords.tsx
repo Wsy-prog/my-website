@@ -35,9 +35,17 @@ export default function ClickWords() {
   }, []);
 
   const handleClick = useCallback((e: MouseEvent) => {
-    // 用 elementFromPoint 获取坐标上的最顶层元素（无视 z-index、DOM 层级问题）
-    const el = document.elementFromPoint(e.clientX, e.clientY);
-    if (el?.closest("input, textarea, select, button, a, [contenteditable], [data-slot], form")) return;
+    // 检查事件路径(e.composedPath)中的每一个节点，看是否有表单控件
+    const path = e.composedPath?.() || [];
+    for (const el of path) {
+      if (el instanceof Element || el instanceof ShadowRoot) {
+        const node = el instanceof ShadowRoot ? el.host : el;
+        const tag = node.tagName;
+        if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || tag === "BUTTON" || tag === "A") return;
+        if (tag === "FORM") return;
+        if (node.hasAttribute?.("contenteditable") || node.hasAttribute?.("data-slot")) return;
+      }
+    }
 
     const s = settingsRef.current;
     if (s.words.length === 0) return;
