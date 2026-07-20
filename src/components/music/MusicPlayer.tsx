@@ -283,35 +283,38 @@ export function MusicPlayer() {
     return () => obs.disconnect();
   }, []);
 
-  // 可视化条（复用 AudioContext + MediaElementSource，不中断音频）
+  // 可视化条 — 永久连接 AudioContext 图，永不 disconnect，只开关读数循环
   useEffect(() => {
     const audio = audioRef.current;
-    if (!audio || !showVisualizer) {
+    if (!audio) return;
+    try {
+      if (!audioCtxRef.current) {
+        audioCtxRef.current = new AudioContext();
+        const ctx = audioCtxRef.current;
+        if (ctx.state === "suspended") ctx.resume();
+        mediaSourceRef.current = ctx.createMediaElementSource(audio);
+        const analyser = ctx.createAnalyser();
+        analyser.fftSize = 64;
+        mediaSourceRef.current.connect(analyser);
+        analyser.connect(ctx.destination);
+        analyserRef.current = analyser;
+      }
+    } catch { /* 浏览器限制 */ }
+  }, []);
+
+  // 可视化条 — 开关读数循环（不触碰连接图）
+  useEffect(() => {
+    const analyser = analyserRef.current;
+    if (!analyser || !showVisualizer) {
       cancelAnimationFrame(animFrameRef.current);
-      if (!showVisualizer) { setVisData([]); if (mediaSourceRef.current) mediaSourceRef.current.disconnect(); }
-      if (analyserRef.current) { analyserRef.current.disconnect(); analyserRef.current = null; }
+      if (!showVisualizer) setVisData([]);
       return;
     }
-    try {
-      if (!audioCtxRef.current) audioCtxRef.current = new AudioContext();
-      const ctx = audioCtxRef.current;
-      if (ctx.state === "suspended") ctx.resume();
-      // 创建 MediaElementSource（只一次）
-      if (!mediaSourceRef.current) mediaSourceRef.current = ctx.createMediaElementSource(audio);
-      // 断开旧 analyser + 旧 mediaSource 连接，避免叠加导致无声
-      if (analyserRef.current) analyserRef.current.disconnect();
-      mediaSourceRef.current.disconnect();
-      const analyser = ctx.createAnalyser();
-      analyser.fftSize = 64;
-      mediaSourceRef.current.connect(analyser);
-      analyser.connect(ctx.destination);
-      analyserRef.current = analyser;
-      const buf = new Uint8Array(analyser.frequencyBinCount);
-      const read = () => { analyser.getByteFrequencyData(buf); setVisData(Array.from(buf.slice(0, 30))); animFrameRef.current = requestAnimationFrame(read); };
-      read();
-    } catch {}
+    const buf = new Uint8Array(analyser.frequencyBinCount);
+    const read = () => { analyser.getByteFrequencyData(buf); setVisData(Array.from(buf.slice(0, 30))); animFrameRef.current = requestAnimationFrame(read); };
+    read();
     return () => cancelAnimationFrame(animFrameRef.current);
-  }, [showVisualizer, currentTrack]);
+  }, [showVisualizer]);
 
   // 歌词设置持久化
   useEffect(() => {

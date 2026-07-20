@@ -133,8 +133,10 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>(
     const [showInlineImagePicker, setShowInlineImagePicker] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    // 选区更新 key — 选区变化时强制重渲染，让工具栏状态（标题级别、加粗等）同步更新
+    // 选区更新 key — 选区变化时强制重渲染
     const [, setSelKey] = useState(0);
+    // 标题级别本地 state，同步更新下拉框显示
+    const [localHeading, setLocalHeading] = useState(0);
 
     const editor = useEditor({
       extensions: [
@@ -172,7 +174,15 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>(
       ],
       content: initialContent || "<p></p>",
       onUpdate,
-      onSelectionUpdate: () => setSelKey((k) => k + 1),
+      onSelectionUpdate: () => {
+        setSelKey((k) => k + 1);
+        // 光标移动时同步标题级别
+        const ed = editor;
+        if (ed) {
+          const h = ed.isActive("heading") ? (ed.getAttributes("heading").level as number) : 0;
+          setLocalHeading(h);
+        }
+      },
       editorProps: {
         attributes: {
           class:
@@ -273,6 +283,13 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>(
 
     if (!editor) return null;
 
+    // 实时从编辑器读取的标题级别
+    const editorHeading = editor.isActive("heading")
+      ? (editor.getAttributes("heading").level as number)
+      : 0;
+    // 优先用本地 state，没有则从编辑器读取
+    const headingLevel = localHeading || editorHeading;
+
     const isBold = editor.isActive("bold");
     const isItalic = editor.isActive("italic");
     const isUnderline = editor.isActive("underline");
@@ -282,9 +299,6 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>(
     const isBulletList = editor.isActive("bulletList");
     const isOrderedList = editor.isActive("orderedList");
     const isLink = editor.isActive("link");
-    const headingLevel = editor.isActive("heading")
-      ? (editor.getAttributes("heading").level as number)
-      : 0;
 
     return (
       <>
@@ -314,9 +328,10 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>(
               const val = e.target.value;
               if (val) {
                 const level = parseInt(val[1]) as 1|2|3;
-                // 先清除所有 heading，再设置指定级别的 heading（避免级别间切换异常）
+                setLocalHeading(level); // 立即更新下拉框显示
                 editor.chain().focus().setParagraph().toggleHeading({ level }).run();
               } else {
+                setLocalHeading(0);
                 editor.chain().focus().setParagraph().run();
               }
             }}
