@@ -1,3 +1,5 @@
+const STORAGE_KEY = "click_words_settings";
+
 export interface ClickWordsSettings {
   enabled: boolean;
   words: string[];
