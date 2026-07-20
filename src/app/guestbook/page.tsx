@@ -89,7 +89,7 @@ export default function GuestbookPage() {
   const { isAdmin } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [form, setForm] = useState({ name: "", content: "" });
-  const [visitorCount, setVisitorCount] = useState(0);
+  const [visitorCount, setVisitorCount] = useState<number | null>(null);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
@@ -118,15 +118,43 @@ export default function GuestbookPage() {
   }, [messages, loaded]);
 
   useEffect(() => {
-    const stored = localStorage.getItem("guestbook_visitor_count");
-    const thisVisit = localStorage.getItem("guestbook_visited");
-    let count = stored ? parseInt(stored, 10) : 0;
-    if (!thisVisit) {
-      count += 1;
-      localStorage.setItem("guestbook_visited", "1");
-      localStorage.setItem("guestbook_visitor_count", String(count));
-    }
-    setVisitorCount(count);
+    // 从服务端读取访客计数，如果首次来访则 +1
+    const syncVisitorCount = async () => {
+      try {
+        const res = await fetch("/api/data/guestbook_visitor_count");
+        const json = await res.json();
+        if (json.exists && typeof json.data === "number") {
+          const serverCount = json.data as number;
+          const thisVisit = localStorage.getItem("guestbook_visited");
+          if (!thisVisit) {
+            localStorage.setItem("guestbook_visited", "1");
+            const newCount = serverCount + 1;
+            fetch("/api/data/guestbook_visitor_count", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ data: newCount }),
+            }).catch(() => {});
+            setVisitorCount(newCount);
+          } else {
+            setVisitorCount(serverCount);
+          }
+        } else {
+          const thisVisit = localStorage.getItem("guestbook_visited");
+          if (!thisVisit) {
+            localStorage.setItem("guestbook_visited", "1");
+            fetch("/api/data/guestbook_visitor_count", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ data: 1 }),
+            }).catch(() => {});
+            setVisitorCount(1);
+          } else {
+            setVisitorCount(0);
+          }
+        }
+      } catch { console.warn("guestbook: visitor count failed"); }
+    };
+    syncVisitorCount();
   }, []);
 
   const [likedIds, setLikedIdsState] = useState<number[]>([]);
@@ -213,7 +241,7 @@ export default function GuestbookPage() {
         <p className="text-muted-foreground">留下你的足迹，说点什么吧</p>
         <div className="inline-flex items-center gap-2 mt-4 px-4 py-2 rounded-full bg-primary/10 text-sm">
           <span>👀 已有</span>
-          <span className="font-bold text-primary">{visitorCount.toLocaleString()}</span>
+          <span className="font-bold text-primary">{visitorCount !== null ? visitorCount.toLocaleString() : "..."}</span>
           <span>位访客来过了</span>
         </div>
       </AnimatedSection>
