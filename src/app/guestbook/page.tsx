@@ -149,25 +149,26 @@ export default function GuestbookPage() {
             }).catch(() => {});
             setVisitorCount(1);
           } else {
-            setVisitorCount(0);
+            setVisitorCount(0); // 数据库被清过，等待重新计数
           }
         }
-      } catch { /* API 不可用时回退 */ }
+        return; // API 可用时，无论有没有数据都用服务器的结果
+      } catch { /* API 不可用时走下面 localStorage 回退 */ }
 
-        // 回退方案：API 不可用时用 localStorage
-        try {
-          const stored = localStorage.getItem("guestbook_visitor_count");
-          const thisVisit = localStorage.getItem("guestbook_visited");
-          let count = stored ? parseInt(stored, 10) : 0;
-          if (!thisVisit) {
-            count += 1;
-            localStorage.setItem("guestbook_visited", "1");
-            localStorage.setItem("guestbook_visitor_count", String(count));
-          }
-          setVisitorCount(count);
-        } catch {}
-      };
-      syncVisitorCount();
+      // 回退方案：API 不可用时用 localStorage
+      try {
+        const stored = localStorage.getItem("guestbook_visitor_count");
+        const thisVisit = localStorage.getItem("guestbook_visited");
+        let count = stored ? parseInt(stored, 10) : 0;
+        if (!thisVisit) {
+          count += 1;
+          localStorage.setItem("guestbook_visited", "1");
+          localStorage.setItem("guestbook_visitor_count", String(count));
+        }
+        setVisitorCount(count);
+      } catch {}
+    };
+    syncVisitorCount();
   }, []);
 
   const [likedIds, setLikedIdsState] = useState<number[]>([]);
