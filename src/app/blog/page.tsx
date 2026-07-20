@@ -119,8 +119,8 @@ function BlogPageInner() {
     return loadCustomPosts().some((p) => p.slug === slug);
   }
 
-  function handleDelete(slug: string) {
-    deleteCustomPost(slug).catch(() => {});
+  async function handleDelete(slug: string) {
+    await deleteCustomPost(slug);
     setAllPosts(getAllPosts(blogPosts));
     setDraftCount(loadCustomPosts().filter(p => p.draft).length);
     setDeleteTarget(null);
