@@ -4,19 +4,33 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { loadClickWordsSettings, syncClickWordsFromApi, DEFAULT_SETTINGS, type ClickWordsSettings } from "@/lib/click-words-store";
 
+/**
+ * 在 mousedown 阶段（capture，先于一切）检查目标是否可聚焦。
+ * 如果可聚焦，click 事件中跳过特效，避免 React state 更新抢走焦点。
+ */
+function isFocusableTarget(el: EventTarget | null): boolean {
+  if (!(el instanceof Element)) return false;
+  // 自身上检查
+  if (el.getAttribute?.("data-cw-ignore") === "true") return true;
+  const tag = el.tagName.toLowerCase();
+  if (["input", "textarea", "select", "button", "a"].includes(tag)) return true;
+  if (el instanceof HTMLElement && el.isContentEditable) return true;
+  if (el.getAttribute?.("data-slot") || el.getAttribute?.("contenteditable")) return true;
+  // 祖先链检查
+  if (el.closest?.("textarea, input, select, button, a, [data-slot], [contenteditable], [data-cw-ignore]")) return true;
+  return false;
+}
+
 export default function ClickWords() {
   const [settings, setSettings] = useState<ClickWordsSettings>(DEFAULT_SETTINGS);
   const [ripple, setRipple] = useState<{ id: number; word: string; x: number; y: number } | null>(null);
-  const [loaded, setLoaded] = useState(false);
   const indexRef = useRef(0);
   const idRef = useRef(0);
   const settingsRef = useRef<ClickWordsSettings>(DEFAULT_SETTINGS);
-  const clickTargetRef = useRef<Element | null>(null);
+  const skipNextRef = useRef(false);
 
-  // keep ref in sync
   useEffect(() => { settingsRef.current = settings; }, [settings]);
 
-  // load settings on mount + sync from API
   useEffect(() => {
     const init = async () => {
       const local = loadClickWordsSettings();
@@ -27,12 +41,10 @@ export default function ClickWords() {
         setSettings(remote);
         settingsRef.current = remote;
       }
-      setLoaded(true);
     };
     init();
   }, []);
 
-  // listen for settings changes from settings panel
   useEffect(() => {
     const handler = () => {
       const updated = loadClickWordsSettings();
@@ -43,74 +55,20 @@ export default function ClickWords() {
     return () => window.removeEventListener("click-words-settings-changed", handler);
   }, []);
 
-  // pointerdown 更底层，在所有事件之前触发
-  useEffect(() => {
-    const onPointerDown = (e: PointerEvent) => {
-      const target = e.target;
-      if (target instanceof Element) {
-        clickTargetRef.current = target;
-        // 如果目标或祖先有关注能力，标记跳过
-        let node: Element | null = target;
-        while (node) {
-          if (node.getAttribute?.("data-cw-ignore")) {
-            clickTargetRef.current = null;
-            return;
-          }
-          node = node.parentElement;
-        }
-      }
-    };
-    document.addEventListener("pointerdown", onPointerDown, true);
-    return () => document.removeEventListener("pointerdown", onPointerDown, true);
-  }, []);
-
-  // mousedown 备选
+  // mousedown (capture) — 先于 React 事件系统，决定是否跳过后续 click
   useEffect(() => {
     const onMousedown = (e: MouseEvent) => {
-      clickTargetRef.current = e.target instanceof Element ? e.target : null;
+      skipNextRef.current = isFocusableTarget(e.target);
     };
     document.addEventListener("mousedown", onMousedown, true);
     return () => document.removeEventListener("mousedown", onMousedown, true);
   }, []);
 
-  const isFocusable = useCallback((el: Element): boolean => {
-    if (el.getAttribute?.("data-cw-ignore")) return true;
-    const tag = el.tagName.toLowerCase();
-    if (["input", "textarea", "select", "button", "a"].includes(tag)) return true;
-    if (el instanceof HTMLElement && el.isContentEditable) return true;
-    if (el.getAttribute?.("data-slot") || el.getAttribute?.("contenteditable")) return true;
-    return false;
-  }, []);
-
-  // 通过指针坐标判断是否在交互元素区域
-  function isOverFocusable(x: number, y: number): boolean {
-    try {
-      const el = document.elementFromPoint(x, y);
-      if (!el) return false;
-      // 调试：检查点击到的实际元素
-      if (!(el instanceof Element) || (!isFocusable(el) && !el.closest?.("textarea,input,select,button,a,[data-slot],[data-cw-ignore]"))) {
-        // 走到这里说明点击到的不是交互元素 - 检查具体是什么
-        const tag = el instanceof Element ? el.tagName : typeof el;
-        // 只在开发意识下留痕迹
-        if (el instanceof HTMLElement && el.closest?.("textarea")) return true; // 如果 ancestor 是 textarea 也算
-      }
-      let node = el instanceof Element ? el : null;
-      while (node) {
-        if (isFocusable(node)) return true;
-        node = node.parentElement;
-      }
-    } catch { /* ignore */ }
-    return false;
-  }
-
   const handleClick = useCallback((e: MouseEvent) => {
-    // 1) 检查点击坐标下方的元素（elementFromPoint 最准确）
-    if (isOverFocusable(e.clientX, e.clientY)) return;
-
-    // 2) 检查当前焦点
-    const active = document.activeElement;
-    if (active && active !== document.body) {
-      if (active.getAttribute?.("data-cw-ignore") || active.getAttribute?.("data-slot")) return;
+    // 如果在 mousedown 阶段已判定为可聚焦元素，跳过特效
+    if (skipNextRef.current) {
+      skipNextRef.current = false;
+      return;
     }
 
     const s = settingsRef.current;
@@ -125,7 +83,7 @@ export default function ClickWords() {
     setTimeout(() => {
       setRipple((prev) => (prev?.id === id ? null : prev));
     }, s.duration);
-  }, [isFocusable]);
+  }, []);
 
   useEffect(() => {
     document.addEventListener("click", handleClick);
