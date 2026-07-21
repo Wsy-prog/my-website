@@ -1,10 +1,45 @@
-/** 客户端上传：走服务端代理 /api/upload（服务端用 Cloudinary API key/secret 签名），避免暴露无签名 upload_preset */
+/**
+ * Cloudinary 上传：客户端直传（签名模式），绕过 Vercel body 大小限制。
+ *
+ * Vercel 免费计划 HTTP body 限制 4.5MB，音频文件通常超过此大小，
+ * 走服务端代理 /api/upload 会被 Vercel 前置层拒绝（413）。
+ *
+ * 改为：服务端返回上传签名（/api/cloudinary-signature，管理员鉴权），
+ * 客户端拿签名直传 Cloudinary API，流量不经过 Vercel。
+ * 图片压缩后通常 < 1MB，仍可走代理（简单稳定），但统一走直传更一致。
+ */
 
 function getAdminToken(): string | null {
   if (typeof window === "undefined") return null;
   try { return localStorage.getItem("admin_token"); } catch { return null; }
 }
 
+interface CloudinarySig {
+  cloudName: string;
+  apiKey: string;
+  timestamp: number;
+  signature: string;
+}
+
+let sigCache: CloudinarySig | null = null;
+let sigExpiry = 0;
+
+async function getSignature(): Promise<CloudinarySig> {
+  if (sigCache && Date.now() < sigExpiry) return sigCache;
+  const token = getAdminToken();
+  const res = await fetch("/api/cloudinary-signature", {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as any).error || "获取上传签名失败");
+  }
+  sigCache = await res.json();
+  sigExpiry = Date.now() + 10 * 60 * 1000; // 缓存 10 分钟
+  return sigCache!;
+}
+
+// 图片压缩后通常 < 1MB，仍可走代理（简单稳定）。
 async function uploadViaProxy(file: File | Blob, kind: "image" | "video" | "auto"): Promise<string> {
   const token = getAdminToken();
   const form = new FormData();
@@ -23,19 +58,39 @@ async function uploadViaProxy(file: File | Blob, kind: "image" | "video" | "auto
   return data.secure_url as string;
 }
 
-/** 上传任意文件到 Cloudinary（图片/音频/视频等），返回 URL */
-export async function uploadToCloudinary(file: File): Promise<string> {
-  return uploadViaProxy(file, "auto");
+/** 客户端直传 Cloudinary（绕过 Vercel body 限制），签名保护 */
+async function directUpload(file: File | Blob, kind: "image" | "video" | "auto"): Promise<string> {
+  const sig = await getSignature();
+  const form = new FormData();
+  form.append("file", file);
+  form.append("api_key", sig.apiKey);
+  form.append("timestamp", String(sig.timestamp));
+  form.append("signature", sig.signature);
+  const res = await fetch(`https://api.cloudinary.com/v1_1/${sig.cloudName}/${kind}/upload`, {
+    method: "POST",
+    body: form,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as any).error?.message || "上传失败");
+  }
+  const data = await res.json();
+  return data.secure_url as string;
 }
 
-/** 上传图片到 Cloudinary，返回 URL */
+/** 上传任意文件到 Cloudinary（直传，绕过 Vercel body 限制） */
+export async function uploadToCloudinary(file: File): Promise<string> {
+  return directUpload(file, "auto");
+}
+
+/** 上传图片到 Cloudinary（压缩后较小，走代理） */
 export async function uploadImage(file: File): Promise<string> {
   return uploadViaProxy(file, "image");
 }
 
-/** 上传音频文件到 Cloudinary（mp3/wav 等），返回 URL */
+/** 上传音频文件到 Cloudinary（直传，音频通常 >4.5MB） */
 export async function uploadAudio(file: File): Promise<string> {
-  return uploadViaProxy(file, "video");
+  return directUpload(file, "video");
 }
 
 /** 压缩图片后上传（适用于博客/摄影场景，maxW 为最大宽度） */
