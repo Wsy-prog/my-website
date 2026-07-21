@@ -165,7 +165,12 @@ export function SettingsPanel() {
   const settingsInitialized = useRef(false);
 
   useEffect(() => {
-    setSettings(getStored());
+    // 只有访客本地确实存过背景设置时才读取并应用；未存过（新访客）保留 SSR 已渲染的背景，
+    // 不用 fallback 的 aurora 覆盖服务端的图片/视频默认背景。
+    // （SSR 用数据库 site_defaults 渲染了正确的背景，客户端无需再动）
+    if (localStorage.getItem("bg_type")) {
+      setSettings(getStored());
+    }
     setAssets(loadAssets());
     // 从 API 拉取最新的壁纸列表，覆盖本地（确保能看到别人新增的壁纸）
     loadAssetsFromApi().then(apiAssets => {
@@ -174,7 +179,7 @@ export function SettingsPanel() {
         setAssets(apiAssets);
       }
     });
-    // 标记初始化完成后再允许 applySettings/saveSettings，避免 mount 时用空 localStorage 的值覆盖服务端渲染的背景
+    // 标记初始化完成后再允许 applySettings/saveSettings，避免 mount 时覆盖服务端渲染的背景
     setTimeout(() => { settingsInitialized.current = true; }, 0);
   }, []);
 
