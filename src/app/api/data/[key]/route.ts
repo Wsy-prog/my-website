@@ -74,6 +74,22 @@ function filterDeleted(items: any[]): any[] {
     .map((x) => (x.replies ? { ...x, replies: filterDeleted(x.replies) } : x));
 }
 
+// 评论/留言的 _deleted tombstone 清理阈值：超过此数量时，最老的 tombstone 被真删
+const TOMBSTONE_CLEANUP_THRESHOLD = 50;
+
+/** 清理过期 tombstone：保留最近 50 条，超出的真删（释放存储空间） */
+function cleanupTombstones(items: any[]): any[] {
+  const tombstones: { id: number; idx: number }[] = [];
+  items.forEach((item, idx) => {
+    if (item?._deleted) tombstones.push({ id: item.id, idx });
+  });
+  if (tombstones.length <= TOMBSTONE_CLEANUP_THRESHOLD) return items;
+  const toRemove = new Set(
+    tombstones.slice(0, tombstones.length - TOMBSTONE_CLEANUP_THRESHOLD).map(t => t.id)
+  );
+  return items.filter((item) => !(item?._deleted && toRemove.has(item.id)));
+}
+
 // GET /api/data/{key} — 读取数据（公开，敏感 key 需鉴权）
 export async function GET(
   _req: NextRequest,
@@ -117,15 +133,20 @@ export async function POST(
     const body = await req.json();
     let toSave = body.data;
 
-    // 留言/评论等公开协作 key：按 id 合并，避免整体覆盖丢数据 / 被恶意清空
+    // 留言/评论等公开协作 key：按 id 合并 + 清理过期 tombstone
     if (isMergedKey(key) && Array.isArray(toSave)) {
       const existing = await loadFromDb<any[]>(key);
-      const serverData = existing.exists && Array.isArray(existing.data) ? existing.data : [];
+      let serverData: any[] = [];
+      if (existing.exists && Array.isArray(existing.data)) {
+        serverData = existing.data;
+      }
       if (key.startsWith("blog_comments_")) {
         toSave = mergeComments(serverData, toSave);
       } else {
         toSave = mergeById(serverData, toSave);
       }
+      // 自动清理超出阈值的旧 tombstone，确保不无限累积
+      toSave = cleanupTombstones(toSave);
     }
 
     await saveToDb(key, toSave);

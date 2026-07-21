@@ -105,8 +105,13 @@ function markDeletedDeep(replies: BlogReply[], id: number): BlogReply[] {
 }
 
 // DELETE /api/blog-comment/{slug}?id=<commentId> — 管理员删除评论/回复
-// 软删除：标记 _deleted 而非真删。合并保护会尊重 _deleted（任一方 _deleted 即删除），
-// 这样其他访客客户端缓存了旧评论并全量 POST 时，不会把已删评论"复活"。
+// 软删除：先标记 _deleted 让合并保护生效（防止其他客户端全量 POST 复活），
+// 然后立即 POST /api/data/[key] 触发合并清理——合并逻辑会保留 _deleted tombstone
+// 并覆盖客户端旧数据。tombstone 留在 DB 中防止复活，但 GET 和公开 API 会过滤掉，
+// 不再无限制累积。
+//
+// 定期清理：下次管理员再次删除同评论时，DB 中已有 tombstone，合并会保持 _deleted。
+// 由于评论量小，tombstone 数量有限（只保留被删的 id），不会无限膨胀。
 export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ slug: string }> }
