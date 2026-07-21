@@ -3,7 +3,13 @@ export async function syncSiteDefaults(): Promise<boolean> {
   const defaults: Record<string, any> = {};
   const keys = ["bg_type", "bg_blur", "bg_opacity", "bg_active_src", "theme", "card_theme"];
   const defaults_fallback: Record<string, string> = { bg_type: "aurora", bg_blur: "0", bg_opacity: "0.3", theme: "", card_theme: "glass" };
-  for (const k of keys) { const v = localStorage.getItem(k) || defaults_fallback[k] || ""; if (v) defaults[k] = v; }
+  for (const k of keys) {
+    const v = localStorage.getItem(k) || defaults_fallback[k] || "";
+    if (!v) continue;
+    // "none" 是 SettingsPanel mount 污染产生的脏值，不应同步到数据库让全站背景消失
+    if (k === "bg_type" && v === "none") continue;
+    defaults[k] = v;
+  }
   try {
     const assets = JSON.parse(localStorage.getItem("bg_assets") || "[]");
     const activeSrc = localStorage.getItem("bg_active_src");

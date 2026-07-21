@@ -93,7 +93,7 @@ function loadAssets(): BgAsset[] {
 function getStored(): BgSettings {
   if (typeof window === "undefined") return { type: "aurora", blur: 0, opacity: 0.3 };
   return {
-    type: (localStorage.getItem("bg_type") as BgType) || "none",
+    type: (localStorage.getItem("bg_type") as BgType) || "aurora",
     blur: parseFloat(localStorage.getItem("bg_blur") || "0"),
     opacity: parseFloat(localStorage.getItem("bg_opacity") || "0.3"),
     activeAssetSrc: localStorage.getItem("bg_active_src") || undefined,
@@ -153,6 +153,8 @@ export function SettingsPanel() {
   const videoFileRef = useRef<HTMLInputElement>(null);
   const videoUrlRef = useRef<HTMLInputElement>(null);
 
+  const settingsInitialized = useRef(false);
+
   useEffect(() => {
     setSettings(getStored());
     setAssets(loadAssets());
@@ -163,9 +165,13 @@ export function SettingsPanel() {
         setAssets(apiAssets);
       }
     });
+    // 标记初始化完成后再允许 applySettings/saveSettings，避免 mount 时用空 localStorage 的值覆盖服务端渲染的背景
+    setTimeout(() => { settingsInitialized.current = true; }, 0);
   }, []);
 
   useEffect(() => {
+    // 跳过初始化时的非用户操作覆盖
+    if (!settingsInitialized.current) return;
     applySettings(settings);
     saveSettings(settings);
   }, [settings]);
