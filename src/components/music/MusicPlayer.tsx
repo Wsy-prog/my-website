@@ -325,7 +325,13 @@ export function MusicPlayer() {
   function importFile(file: File) {
     setImportingAudio(true);
     (async () => {
-      try { const url = await uploadAudio(file); setTracks(t => [...t, { title: file.name.replace(/\.[^.]+$/, ""), artist: "未知艺术家", src: url }]); saveTracks([...tracks, { title: file.name.replace(/\.[^.]+$/, ""), artist: "未知艺术家", src: url }]); } catch {}
+      try {
+        const url = await uploadAudio(file);
+        setTracks(t => [...t, { title: file.name.replace(/\.[^.]+$/, ""), artist: "未知艺术家", src: url }]);
+        saveTracks([...tracks, { title: file.name.replace(/\.[^.]+$/, ""), artist: "未知艺术家", src: url }]);
+      } catch (e: any) {
+        alert("音频上传失败: " + (e?.message || "未知错误"));
+      }
       if (musicFileRef.current) musicFileRef.current.value = "";
       setImportingAudio(false);
     })();
@@ -347,7 +353,13 @@ export function MusicPlayer() {
   function uploadCover(idx: number, file: File) {
     setImportingCoverIdx(idx);
     (async () => {
-      try { const url = await compressAndUpload(file, 400); setTracks(t => t.map((tr, i) => i === idx ? { ...tr, cover: url } : tr)); saveTracks(tracks.map((tr, i) => i === idx ? { ...tr, cover: url } : tr)); } catch {}
+      try {
+        const url = await compressAndUpload(file, 400);
+        setTracks(t => t.map((tr, i) => i === idx ? { ...tr, cover: url } : tr));
+        saveTracks(tracks.map((tr, i) => i === idx ? { ...tr, cover: url } : tr));
+      } catch (e: any) {
+        alert("封面上传失败: " + (e?.message || "未知错误"));
+      }
       setImportingCoverIdx(null);
     })();
   }
