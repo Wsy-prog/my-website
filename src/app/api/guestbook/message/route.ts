@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ensureDB, loadFromDb, saveToDb } from "@/lib/db";
+import { getAuthFromRequest } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -63,5 +64,39 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, message: newMsg });
   } catch (e: any) {
     return NextResponse.json({ error: "发送失败" }, { status: 500 });
+  }
+}
+
+// 在回复树中按 id 删除任意一条
+function removeReplyDeep(replies: any[], id: number): any[] {
+  return replies
+    .filter((r) => r.id !== id)
+    .map((r) => ({ ...r, replies: removeReplyDeep(r.replies || [], id) }));
+}
+
+// DELETE /api/guestbook/message?id=<msgId> — 管理员删除留言/回复
+// 合并保护会阻止全量 POST 删除，故用专用 DELETE 端点真删。
+export async function DELETE(req: NextRequest) {
+  try {
+    if (!getAuthFromRequest(req)) {
+      return NextResponse.json({ error: "需要管理员权限" }, { status: 401 });
+    }
+    const idStr = req.nextUrl.searchParams.get("id");
+    const id = idStr ? parseInt(idStr, 10) : NaN;
+    if (isNaN(id)) {
+      return NextResponse.json({ error: "缺少有效的 id" }, { status: 400 });
+    }
+
+    await ensureDB();
+    const existing = await loadFromDb<GuestMessage[]>("guestbook_messages");
+    const messages = existing.exists && Array.isArray(existing.data) ? existing.data : [];
+    const updated = messages
+      .filter((m) => m.id !== id)
+      .map((m) => ({ ...m, replies: removeReplyDeep(m.replies || [], id) }));
+
+    await saveToDb("guestbook_messages", updated);
+    return NextResponse.json({ ok: true });
+  } catch (e: any) {
+    return NextResponse.json({ error: "删除失败" }, { status: 500 });
   }
 }

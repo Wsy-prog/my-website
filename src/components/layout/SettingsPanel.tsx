@@ -190,6 +190,19 @@ export function SettingsPanel() {
     saveSettings(settings);
   }, [settings]);
 
+  // 监听 SiteDefaultsInit 的同步完成事件：管理员更新默认后，老访客本地是旧值，
+  // SiteDefaultsInit 会把新默认写入 localStorage 并派发此事件，此时重读并应用，
+  // 避免老访客第一次打开用旧值覆盖 SSR、需刷新才正确的现象。
+  useEffect(() => {
+    const handler = () => {
+      const stored = getStored();
+      setSettings(stored);
+      applySettings(stored);
+    };
+    window.addEventListener("site-defaults-applied", handler);
+    return () => window.removeEventListener("site-defaults-applied", handler);
+  }, []);
+
   const update = useCallback((partial: Partial<BgSettings>) => {
     setSettings((prev) => ({ ...prev, ...partial }));
   }, []);

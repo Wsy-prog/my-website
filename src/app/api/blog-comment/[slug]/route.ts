@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ensureDB, loadFromDb, saveToDb } from "@/lib/db";
+import { getAuthFromRequest } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -92,5 +93,49 @@ export async function POST(
     return NextResponse.json({ ok: true, entry: newEntry });
   } catch (e: any) {
     return NextResponse.json({ error: "发送失败" }, { status: 500 });
+  }
+}
+
+// 在回复树中按 id 删除任意一条（含子回复）
+function removeByIdDeep(replies: BlogReply[], id: number): BlogReply[] {
+  return replies
+    .filter((r) => r.id !== id)
+    .map((r) => ({ ...r, replies: removeByIdDeep(r.replies, id) }));
+}
+
+// DELETE /api/blog-comment/{slug}?id=<commentId> — 管理员删除评论/回复
+// 合并保护会阻止全量 POST 删除，故用专用 DELETE 端点真删。
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: Promise<{ slug: string }> }
+) {
+  try {
+    if (!getAuthFromRequest(req)) {
+      return NextResponse.json({ error: "需要管理员权限" }, { status: 401 });
+    }
+    const { slug } = await params;
+    if (!slug || !/^[a-zA-Z0-9_-]+$/.test(slug)) {
+      return NextResponse.json({ error: "无效的文章标识" }, { status: 400 });
+    }
+    const idStr = req.nextUrl.searchParams.get("id");
+    const id = idStr ? parseInt(idStr, 10) : NaN;
+    if (isNaN(id)) {
+      return NextResponse.json({ error: "缺少有效的 id" }, { status: 400 });
+    }
+
+    await ensureDB();
+    const key = BASE_KEY + slug;
+    const existing = await loadFromDb<BlogComment[]>(key);
+    const comments = existing.exists && Array.isArray(existing.data) ? existing.data : [];
+
+    // 顶层删除 + 子回复删除
+    const updated = comments
+      .filter((c) => c.id !== id)
+      .map((c) => ({ ...c, replies: removeByIdDeep(c.replies, id) }));
+
+    await saveToDb(key, updated);
+    return NextResponse.json({ ok: true });
+  } catch (e: any) {
+    return NextResponse.json({ error: "删除失败" }, { status: 500 });
   }
 }

@@ -148,11 +148,25 @@ export default function GuestbookPage() {
   const [likedIds, setLikedIdsState] = useState<number[]>([]);
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
 
-  function handleDelete(id: number) {
+  async function handleDelete(id: number) {
     const removeReplyDeep = (replies: ReplyMsg[]): ReplyMsg[] =>
       replies.filter(r => r.id !== id).map(r => ({ ...r, replies: removeReplyDeep(r.replies) }));
+    // 乐观删除
+    const prev = messages;
     setMessages(messages.filter(m => m.id !== id).map(m => ({ ...m, replies: removeReplyDeep(m.replies) })));
     setDeleteTarget(null);
+    // 服务端真删（合并保护会挡住全量 POST 删除，必须走 DELETE 端点）
+    const token = localStorage.getItem("admin_token");
+    if (!token) { setMessages(prev); return; }
+    try {
+      const res = await fetch(`/api/guestbook/message?id=${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) { setMessages(prev); alert("删除失败，请重试"); }
+    } catch {
+      setMessages(prev); alert("网络错误，删除失败");
+    }
   }
 
   useEffect(() => { setLikedIdsState(getLikedIds()); }, []);
