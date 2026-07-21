@@ -1,9 +1,15 @@
 import type { NextConfig } from "next";
 
-const nextConfig: NextConfig = {
+const nextConfig = {
   pageExtensions: ["js", "jsx", "ts", "tsx"],
   poweredByHeader: false,
   serverExternalPackages: ["pg"],
+  experimental: {
+    proxyClientMaxBodySize: "50mb",
+  },
+  serverActions: {
+    bodySizeLimit: "50mb",
+  },
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "picsum.photos" },
