@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { ArrowRight, Calendar, Clock } from "lucide-react";
 import { GlassCard } from "@/components/shared/GlassCard";
 import { Button } from "@/components/ui/button";
@@ -47,8 +48,8 @@ export function FeaturedPosts() {
               <GlassCard delay={i * 0.15} className="h-full flex flex-col">
                 {/* Cover */}
                 {post.coverImage ? (
-                  <div className="w-full h-40 rounded-xl overflow-hidden mb-4">
-                    <img src={post.coverImage} alt={post.title} loading="lazy" className="w-full h-full object-cover"
+                  <div className="relative w-full h-40 rounded-xl overflow-hidden mb-4">
+                    <Image src={post.coverImage} alt={post.title} fill sizes="(max-width: 768px) 100vw, 33vw" className="object-cover"
                       style={{ objectPosition: `50% ${post.coverPosition ?? 50}%` }} />
                   </div>
                 ) : (

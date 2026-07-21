@@ -159,20 +159,30 @@ export default function GuestbookPage() {
 
   const isLiked = (id: number) => likedIds.includes(id);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name.trim() || !form.content.trim()) return;
-    const newMsg: Message = {
-      id: Date.now() + Math.floor(Math.random() * 10000),
-      name: form.name,
-      content: form.content,
-      date: new Date().toISOString().split("T")[0],
-      likes: 0,
-      replies: [],
-      showReplyForm: false,
-    };
-    setMessages([newMsg, ...messages]);
+    const name = form.name.trim();
+    const content = form.content.trim();
     setForm({ name: "", content: "" });
+    try {
+      const res = await fetch("/api/guestbook/message", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, content }),
+      });
+      const data = await res.json();
+      if (res.ok && data.message) {
+        const newMsg: Message = { ...data.message, showReplyForm: false };
+        setMessages([newMsg, ...messages]);
+      } else {
+        setForm({ name, content }); // 失败回填，便于重试
+        alert(data.error || "发送失败，请重试");
+      }
+    } catch {
+      setForm({ name, content });
+      alert("网络错误，请重试");
+    }
   };
 
   const toggleLike = (id: number) => {

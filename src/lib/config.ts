@@ -28,14 +28,6 @@ export interface SiteConfig {
     primaryColor: string;
     secondaryColor: string;
   };
-  features: {
-    comments: { enabled: boolean; provider: string };
-    subscribe: { enabled: boolean; provider: string };
-    guestbook: { enabled: boolean };
-    music: { enabled: boolean };
-    pwa: { enabled: boolean };
-    travel: { enabled: boolean; mapProvider: string };
-  };
   contact: {
     email: string;
     social: Record<string, string>;

@@ -36,8 +36,6 @@ function getAllTags(): string[] {
   return [...new Set([...base, ...loadCustomTags()])].sort((a, b) => a.localeCompare(b, "zh"));
 }
 
-export const dynamic = "force-dynamic";
-
 function NewBlogPageInner() {
   const { isAdmin } = useAuth();
   const router = useRouter();

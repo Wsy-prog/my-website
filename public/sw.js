@@ -1,4 +1,4 @@
-const CACHE_NAME = "my-website-v2";
+const CACHE_NAME = "my-website-v3";
 const STATIC_ASSETS = [
   "/",
   "/blog",
@@ -14,22 +14,25 @@ const STATIC_ASSETS = [
   "/manifest.webmanifest",
 ];
 
-// 安装：缓存静态资源
+// 安装：缓存静态资源，并立即激活（跳过等待）让新版本尽快接管
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(STATIC_ASSETS);
+      // addAll 失败不应阻塞激活，逐个缓存容错
+      return Promise.allSettled(STATIC_ASSETS.map((url) => cache.add(url)));
     })
   );
+  self.skipWaiting();
 });
 
-// 激活：清理旧缓存
+// 激活：清理旧缓存，并立即控制所有已打开的标签页
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
       Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
     )
   );
+  self.clients.claim();
 });
 
 // 拦截请求：网络优先，离线时回退缓存

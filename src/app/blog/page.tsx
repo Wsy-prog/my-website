@@ -2,6 +2,7 @@
 
 import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { Search, Calendar, Clock, Tag, List, Timeline as TimelineIcon, X, PenLine, Pencil, Trash2, Tags, Filter } from "lucide-react";
@@ -30,8 +31,6 @@ const categories = [
 ];
 
 type ViewMode = "list" | "timeline";
-
-export const dynamic = "force-dynamic";
 
 function BlogPageInner() {
   const { isAdmin } = useAuth();
@@ -289,8 +288,8 @@ function BlogPageInner() {
               </Link>
               <div className="flex-1">
                 {post.coverImage && (
-                  <div className="w-full h-36 rounded-xl overflow-hidden mb-3">
-                    <img src={post.coverImage} alt={post.title} loading="lazy" className="w-full h-full object-cover"
+                  <div className="relative w-full h-36 rounded-xl overflow-hidden mb-3">
+                    <Image src={post.coverImage} alt={post.title} fill sizes="100vw" className="object-cover"
                       style={{ objectPosition: `50% ${post.coverPosition ?? 50}%` }} />
                   </div>
                 )}
@@ -413,8 +412,8 @@ function BlogPageInner() {
                     >
                       <GlassCard className="p-4">
                         {post.coverImage && (
-                          <div className="w-full h-28 rounded-lg overflow-hidden mb-3">
-                            <img src={post.coverImage} alt={post.title} loading="lazy" className="w-full h-full object-cover"
+                          <div className="relative w-full h-28 rounded-lg overflow-hidden mb-3">
+                            <Image src={post.coverImage} alt={post.title} fill sizes="100vw" className="object-cover"
                               style={{ objectPosition: `50% ${post.coverPosition ?? 50}%` }} />
                           </div>
                         )}

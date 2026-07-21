@@ -29,8 +29,6 @@ import {
   type BlogReply,
 } from "@/lib/blog-comments";
 
-export const dynamic = "force-dynamic";
-
 export default function BlogPostPage() {
   const params = useParams();
   const slug = params.slug as string;
@@ -87,20 +85,30 @@ export default function BlogPostPage() {
   }, [comments, commentsLoaded, slug]);
 
   // 评论操作
-  function handleAddComment(e: React.FormEvent) {
+  async function handleAddComment(e: React.FormEvent) {
     e.preventDefault();
     if (!form.name.trim() || !form.content.trim()) return;
-    const newComment: BlogComment = {
-      id: Date.now() + Math.floor(Math.random() * 10000),
-      name: form.name,
-      content: form.content,
-      date: new Date().toISOString().split("T")[0],
-      likes: 0,
-      replies: [],
-      showReplyForm: false,
-    };
-    setComments([newComment, ...comments]);
+    const name = form.name.trim();
+    const content = form.content.trim();
     setForm({ name: "", content: "" });
+    try {
+      const res = await fetch(`/api/blog-comment/${slug}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, content }),
+      });
+      const data = await res.json();
+      if (res.ok && data.entry) {
+        const newComment: BlogComment = { ...data.entry, likes: 0, showReplyForm: false };
+        setComments([newComment, ...comments]);
+      } else {
+        setForm({ name, content });
+        alert(data.error || "评论失败，请重试");
+      }
+    } catch {
+      setForm({ name, content });
+      alert("网络错误，请重试");
+    }
   }
 
   const toggleReplyForm = (id: number, isTopLevel: boolean) => {
@@ -114,25 +122,31 @@ export default function BlogPostPage() {
     }
   };
 
-  const addReply = (parentId: number, parentReplyId: number | null, replyName: string, replyContent: string) => {
+  const addReply = async (parentId: number, parentReplyId: number | null, replyName: string, replyContent: string) => {
     if (!replyName.trim() || !replyContent.trim()) return;
-    const reply: BlogReply = {
-      id: Date.now() + Math.floor(Math.random() * 10000),
-      name: replyName,
-      content: replyContent,
-      date: new Date().toISOString().split("T")[0],
-      replies: [],
-      showReplyForm: false,
-    };
-    if (parentReplyId === null) {
-      setComments(comments.map((c) =>
-        c.id === parentId ? { ...c, replies: [...c.replies, reply], showReplyForm: false } : c
-      ));
-    } else {
-      setComments(comments.map((c) => {
-        if (c.id !== parentId) return c;
-        return { ...c, replies: addReplyDeep(c.replies, parentReplyId, reply) };
-      }));
+    const name = replyName.trim();
+    const content = replyContent.trim();
+    try {
+      const res = await fetch(`/api/blog-comment/${slug}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, content, parentId, parentReplyId }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.entry) { alert(data.error || "回复失败，请重试"); return; }
+      const reply: BlogReply = { ...data.entry, showReplyForm: false };
+      if (parentReplyId === null) {
+        setComments(comments.map((c) =>
+          c.id === parentId ? { ...c, replies: [...c.replies, reply], showReplyForm: false } : c
+        ));
+      } else {
+        setComments(comments.map((c) => {
+          if (c.id !== parentId) return c;
+          return { ...c, replies: addReplyDeep(c.replies, parentReplyId, reply) };
+        }));
+      }
+    } catch {
+      alert("网络错误，请重试");
     }
   };
 

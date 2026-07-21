@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useMemo } from "react";
+import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import { Pause, Play, SkipForward, SkipBack, X, Repeat, ListMusic, Trash2, Settings, ChevronUp, ChevronDown } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
@@ -407,8 +408,8 @@ export function MusicPlayer() {
             {/* 歌曲信息 + 封面 + 黑胶 */}
             <div className="flex items-center gap-2 mb-2">
               {tracks[currentTrack]?.cover ? (
-                <div className="relative shrink-0">
-                  <img src={tracks[currentTrack].cover!} alt="" className={`w-9 h-9 rounded-full object-cover ${showVinyl ? "animate-spin" : ""}`}
+                <div className="relative shrink-0 w-9 h-9">
+                  <Image src={tracks[currentTrack].cover!} alt="" fill sizes="36px" className={`rounded-full object-cover ${showVinyl ? "animate-spin" : ""}`}
                     style={showVinyl ? { animation: "spin 4s linear infinite", animationPlayState: isPlaying ? "running" : "paused" } : {}} />
                   {showVinyl && <div className="absolute inset-0 rounded-full border-4 border-white/10" />}
                 </div>
@@ -504,7 +505,11 @@ export function MusicPlayer() {
                     return (
                       <button key={track.src} onClick={() => { setCurrentTrack(realIdx); setSearchQuery(""); }}
                         className={`w-full text-left px-2 py-1.5 rounded-lg text-xs transition-colors flex items-center gap-2 ${realIdx === currentTrack ? "bg-primary/10 text-primary font-medium" : "hover:bg-accent text-muted-foreground"}`}>
-                        {track.cover ? <img src={track.cover} alt="" className="w-6 h-6 rounded-full object-cover shrink-0" /> : <span className="w-6 h-6 rounded-full bg-muted flex items-center justify-center text-[10px] shrink-0">🎵</span>}
+                        {track.cover ? (
+                          <div className="relative w-6 h-6 rounded-full shrink-0">
+                            <Image src={track.cover} alt="" fill sizes="24px" className="rounded-full object-cover" />
+                          </div>
+                        ) : <span className="w-6 h-6 rounded-full bg-muted flex items-center justify-center text-[10px] shrink-0">🎵</span>}
                         <span className="truncate">{track.title}</span>
                         <span className="opacity-50 shrink-0">— {track.artist}</span>
                       </button>

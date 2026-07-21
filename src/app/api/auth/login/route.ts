@@ -20,7 +20,11 @@ function checkRateLimit(ip: string): { allowed: boolean; remaining: number } {
 
 export async function POST(req: NextRequest) {
   try {
-    const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || req.headers.get("x-real-ip") || "unknown";
+    // 取真实客户端 IP：优先 Vercel 的 x-vercel-forwarded-for，否则取 x-forwarded-for 的末位
+    // （末位是可信代理链最右侧追加的值，无法被客户端伪造；首位可被客户端伪造，不可用）
+    const xff = req.headers.get("x-vercel-forwarded-for") || req.headers.get("x-forwarded-for") || "";
+    const ip = xff.split(",").map((s) => s.trim()).filter(Boolean).pop()
+      || req.headers.get("x-real-ip") || "unknown";
     const { allowed } = checkRateLimit(ip);
     if (!allowed) return NextResponse.json({ error: "请求过于频繁，请 1 分钟后再试" }, { status: 429, headers: { "Retry-After": "60" } });
 

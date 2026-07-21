@@ -1,70 +1,47 @@
-const CLOUD_NAME = "ii40ztmn";
-const UPLOAD_PRESET = "my_website";
+/** 客户端上传：走服务端代理 /api/upload（服务端用 Cloudinary API key/secret 签名），避免暴露无签名 upload_preset */
+
+function getAdminToken(): string | null {
+  if (typeof window === "undefined") return null;
+  try { return localStorage.getItem("admin_token"); } catch { return null; }
+}
+
+async function uploadViaProxy(file: File | Blob, kind: "image" | "video" | "auto"): Promise<string> {
+  const token = getAdminToken();
+  const form = new FormData();
+  form.append("file", file);
+  form.append("kind", kind);
+  const res = await fetch("/api/upload", {
+    method: "POST",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: form,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as any).error || "上传失败");
+  }
+  const data = await res.json();
+  return data.secure_url as string;
+}
 
 /** 上传任意文件到 Cloudinary（图片/音频/视频等），返回 URL */
 export async function uploadToCloudinary(file: File): Promise<string> {
-  const form = new FormData();
-  form.append("file", file);
-  form.append("upload_preset", UPLOAD_PRESET);
-
-  const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/auto/upload`, {
-    method: "POST",
-    body: form,
-  });
-
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error((err as any).error?.message || "上传失败");
-  }
-
-  const data = await res.json();
-  return data.secure_url as string;
+  return uploadViaProxy(file, "auto");
 }
 
 /** 上传图片到 Cloudinary，返回 URL */
 export async function uploadImage(file: File): Promise<string> {
-  const form = new FormData();
-  form.append("file", file);
-  form.append("upload_preset", UPLOAD_PRESET);
-
-  const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {
-    method: "POST",
-    body: form,
-  });
-
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error((err as any).error?.message || "上传失败");
-  }
-
-  const data = await res.json();
-  return data.secure_url as string;
+  return uploadViaProxy(file, "image");
 }
 
 /** 上传音频文件到 Cloudinary（mp3/wav 等），返回 URL */
 export async function uploadAudio(file: File): Promise<string> {
-  const form = new FormData();
-  form.append("file", file);
-  form.append("upload_preset", UPLOAD_PRESET);
-
-  const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/video/upload`, {
-    method: "POST",
-    body: form,
-  });
-
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error((err as any).error?.message || "上传失败");
-  }
-
-  const data = await res.json();
-  return data.secure_url as string;
+  return uploadViaProxy(file, "video");
 }
 
 /** 压缩图片后上传（适用于博客/摄影场景，maxW 为最大宽度） */
 export async function compressAndUpload(file: File, maxW: number = 1200): Promise<string> {
   const compressed = await compressImageToBlob(file, maxW);
-  return uploadImage(compressed as any);
+  return uploadViaProxy(compressed, "image");
 }
 
 /** 将图片文件压缩为 Blob */

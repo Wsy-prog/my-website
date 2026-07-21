@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useRef, Suspense } from "react";
+import Image from "next/image";
 import { useSearchParams, useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { X, ChevronLeft, ChevronRight, Camera, Search, Plus, Upload, MapPin, Calendar, LayoutGrid, Clock3, ImageIcon, Pencil, Trash2, Download } from "lucide-react";
@@ -21,8 +22,6 @@ import { CardContainer, CardBody, CardItem } from "@/components/ui/3d-card";
 import { UploadProgress } from "@/components/shared/UploadProgress";
 
 const categories = ["全部", "风光", "人像", "视频", "运动", "生活"];
-
-export const dynamic = "force-dynamic";
 
 function GalleryPageInner() {
   const isMounted = useIsMounted();
@@ -608,8 +607,8 @@ function GalleryPageInner() {
           {editPhoto && (
             <div className="space-y-4 mt-2">
               {/* 缩略图 */}
-              <div className="rounded-xl overflow-hidden h-32">
-                <img src={editPhoto.src} alt={editPhoto.title} className="w-full h-full object-cover" />
+              <div className="relative rounded-xl overflow-hidden h-32">
+                <Image src={editPhoto.src} alt={editPhoto.title} fill sizes="200px" className="object-cover" />
               </div>
 
               {/* 名称 */}

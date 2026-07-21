@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import { Settings, Pencil, Trash2, Check, X, ImageIcon, Video, ChevronDown, ChevronRight, Music } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -13,6 +14,14 @@ import { useCardTheme } from "@/lib/theme-context";
 import { useAuth } from "@/lib/auth-context";
 import { syncSiteDefaults } from "@/lib/site-defaults";
 import { compressAndUpload, uploadToCloudinary } from "@/lib/cloudinary";
+import {
+  LOCAL_ONLY_KEYS,
+  DB_KEYS,
+  DB_KEYS_WITH_LOCAL_CACHE,
+  COMMENT_INDEX_KEY,
+  isCommentDataKey,
+  isAllowedLocalKey,
+} from "@/lib/backup-keys";
 import RockerSwitch from "@/components/shared/RockerSwitch";
 import { ImagePicker } from "@/components/shared/ImagePicker";
 import { ImageLibrary } from "@/components/shared/ImageLibrary";
@@ -367,7 +376,9 @@ export function SettingsPanel() {
                           {asset.id === "__aurora" ? (
                             <div className="aspect-video bg-gradient-to-br from-purple-500/40 to-cyan-400/40 flex items-center justify-center text-2xl">🌌</div>
                           ) : asset.type === "image" ? (
-                            <img src={asset.src || "/images/bg.jpg"} loading="lazy" className="aspect-video object-cover w-full" />
+                            <div className="relative aspect-video w-full">
+                              <Image src={asset.src || "/images/bg.jpg"} alt="" fill sizes="200px" className="object-cover" />
+                            </div>
                           ) : (
                             <div className="aspect-video bg-muted flex items-center justify-center">
                               <Video className="h-5 w-5 text-muted-foreground" />
@@ -428,7 +439,9 @@ export function SettingsPanel() {
                     {asset.id === "__aurora" ? (
                       <div className="w-9 h-7 rounded bg-gradient-to-br from-purple-500/30 to-cyan-400/30 flex items-center justify-center shrink-0 text-sm">🌌</div>
                     ) : asset.type === "image" ? (
-                      <img src={asset.src || "/images/bg.jpg"} loading="lazy" className="w-9 h-7 rounded object-cover shrink-0" />
+                      <div className="relative w-9 h-7 rounded shrink-0">
+                        <Image src={asset.src || "/images/bg.jpg"} alt="" fill sizes="36px" className="rounded object-cover" />
+                      </div>
                     ) : (
                       <div className="w-9 h-7 rounded bg-muted flex items-center justify-center shrink-0"><Video className="h-3 w-3 text-muted-foreground" /></div>
                     )}
@@ -677,59 +690,73 @@ function BackupSection() {
   const [status, setStatus] = useState<string | null>(null);
 
   async function exportData() {
-    const keys = [
-      "blog_custom_posts",
-      "blog_custom_tags",
-      "gallery_photos",
-      "gallery_deleted_defaults",
-      "travel_all_markers",
-      "travel_markers_version",
-      "music_tracks",
-      "bg_assets",
-      "bg_type",
-      "bg_blur",
-      "bg_opacity",
-      "bg_active_src",
-      "bg_customized",
-      "guestbook_messages",
-      "guestbook_liked",
-      "guestbook_visitor_count",
-      "guestbook_visited",
-      "card_theme",
-      "theme",
-      "scroll_animations_enabled",
-      "blog_comment_liked",
-      "blog_autosave_enabled",
-      "click_words_settings",
-      "lyrics_settings",
-    ];
+    const token = localStorage.getItem("admin_token");
+    setStatus("正在导出…");
     const backup: Record<string, any> = {};
-    for (const k of keys) {
+
+    // 1) 纯本地设置：从 localStorage 读
+    for (const k of LOCAL_ONLY_KEYS) {
       try {
         const v = localStorage.getItem(k);
         if (v !== null && v !== undefined) {
           try { backup[k] = JSON.parse(v); } catch { backup[k] = v; }
         }
-      } catch { console.warn("SettingsPanel: operation failed"); }
+      } catch { console.warn("backup: read local failed", k); }
     }
-    // 备份所有文章评论
+
+    // 2) 评论索引（本地唯一源）
+    try {
+      const idx = localStorage.getItem(COMMENT_INDEX_KEY);
+      if (idx) backup[COMMENT_INDEX_KEY] = JSON.parse(idx);
+    } catch { console.warn("backup: read comment index failed"); }
+
+    // 3) 本地缓存的文章评论（补充，权威源在 DB，见下）
     try {
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
-        if (key && key.startsWith("blog_comments_") && key !== "blog_comments_slugs" && key !== "blog_comments_all") {
+        if (key && isCommentDataKey(key)) {
           try {
             const v = localStorage.getItem(key);
             if (v) backup[key] = JSON.parse(v);
-          } catch { console.warn("SettingsPanel: operation failed"); }
+          } catch { console.warn("backup: read comment failed", key); }
         }
       }
-    } catch { console.warn("SettingsPanel: operation failed"); }
-    // 从 API 拉取 site_defaults（await 等待完成后再下载）
-    try {
-      const res = await fetch("/api/data/site_defaults");
-      const json = await res.json();
-      if (json.exists && json.data) backup.site_defaults = json.data;
-    } catch { console.warn("SettingsPanel: API fetch failed"); }
+    } catch { console.warn("backup: enumerate comments failed"); }
+
+    // 4) 数据库权威数据：带 token 从 API 拉（含 contact_messages、site_defaults、所有 blog_comments_*）
+    if (token) {
+      try {
+        // 4a) 列出 DB 所有 key，找出所有评论 key
+        const keysRes = await fetch("/api/data/keys", { headers: { Authorization: `Bearer ${token}` } });
+        const keysJson = await keysRes.json();
+        const dbKeys: string[] = Array.isArray(keysJson.keys) ? keysJson.keys : [];
+
+        // 4b) 拉已知 DB_KEYS
+        for (const k of DB_KEYS) {
+          try {
+            const res = await fetch(`/api/data/${k}`, { headers: { Authorization: `Bearer ${token}` } });
+            const json = await res.json();
+            if (json.exists && json.data !== null) backup[k] = json.data;
+          } catch { console.warn("backup: fetch db key failed", k); }
+        }
+
+        // 4c) 拉所有评论 key（权威源，不漏没访问过的文章）
+        for (const k of dbKeys) {
+          if (isCommentDataKey(k)) {
+            try {
+              const res = await fetch(`/api/data/${k}`, { headers: { Authorization: `Bearer ${token}` } });
+              const json = await res.json();
+              if (json.exists && Array.isArray(json.data)) backup[k] = json.data;
+            } catch { console.warn("backup: fetch comment failed", k); }
+          }
+        }
+      } catch { console.warn("backup: API fetch failed"); }
+    } else {
+      setStatus("⚠️ 未登录，仅备份本浏览器数据（博客/评论/联系表单等服务器数据未导出）");
+      setTimeout(() => setStatus(null), 4000);
+    }
+
+    backup._version = 1;
     backup._exported_at = new Date().toISOString();
     const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
@@ -738,7 +765,7 @@ function BackupSection() {
     a.download = `website-backup-${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
     URL.revokeObjectURL(url);
-    setStatus("已导出！");
+    setStatus("✅ 已导出！");
     setTimeout(() => setStatus(null), 2000);
   }
 
@@ -754,51 +781,60 @@ function BackupSection() {
       reader.onload = async () => {
         try {
           const data = JSON.parse(reader.result as string);
-          // 简单格式校验
+          // 格式校验：顶层对象 + 含版本/导出时间标记 + 至少一个已知 key
           if (!data || typeof data !== "object" || Array.isArray(data)) {
             setStatus("文件格式错误：无效的备份文件"); setTimeout(() => setStatus(null), 2000); return;
           }
-          if (!data._exported_at && !data.blog_custom_posts && !data.guestbook_messages) {
+          const hasMarker = !!data._exported_at || !!data._version;
+          const hasKnownKey = Object.keys(data).some((k) => !k.startsWith("_") && isAllowedLocalKey(k));
+          if (!hasMarker && !hasKnownKey) {
             setStatus("文件格式错误：不是有效的备份文件"); setTimeout(() => setStatus(null), 2000); return;
           }
 
-          // 安全检查：只允许写入已知的 key
-          const allowedKeys = new Set([
-            "blog_custom_posts", "blog_custom_tags", "gallery_photos",
-            "gallery_deleted_defaults", "travel_all_markers", "travel_markers_version",
-            "music_tracks", "bg_assets", "bg_type", "bg_blur", "bg_opacity",
-            "bg_active_src", "bg_customized", "guestbook_messages", "guestbook_liked",
-            "guestbook_visitor_count", "guestbook_visited", "card_theme", "theme",
-            "scroll_animations_enabled", "blog_comment_liked", "blog_autosave_enabled",
-      "click_words_settings",
-      "lyrics_settings",
-          ]);
+          setStatus("正在恢复…");
 
+          // 1) 先清除备份涉及的本地 key（实现真正的“覆盖”，避免残留旧值）
+          const clearLocalKeys = new Set<string>([
+            ...LOCAL_ONLY_KEYS,
+            ...DB_KEYS_WITH_LOCAL_CACHE,
+            COMMENT_INDEX_KEY,
+            "site_defaults",
+          ]);
+          for (const k of clearLocalKeys) {
+            try { localStorage.removeItem(k); } catch { /* ignore */ }
+          }
+          // 清除所有现有的评论 key
+          try {
+            const toRemove: string[] = [];
+            for (let i = 0; i < localStorage.length; i++) {
+              const key = localStorage.key(i);
+              if (key && isCommentDataKey(key)) toRemove.push(key);
+            }
+            for (const k of toRemove) localStorage.removeItem(k);
+          } catch { /* ignore */ }
+
+          // 2) 写入本地 key（白名单校验，防注入未知 key）
           let count = 0;
           for (const [k, v] of Object.entries(data)) {
             if (k.startsWith("_")) continue;
-            if (k.startsWith("blog_comments_") && k !== "blog_comments_slugs" && k !== "blog_comments_all") {
-              // 允许评论数据写入
-            } else if (!allowedKeys.has(k)) {
-              continue; // 跳过未知 key
-            }
-            if (typeof v === "string") {
-              localStorage.setItem(k, v);
-            } else {
-              localStorage.setItem(k, JSON.stringify(v));
-            }
-            count++;
+            if (!isAllowedLocalKey(k)) continue; // 跳过未知 key
+            try {
+              if (typeof v === "string") localStorage.setItem(k, v);
+              else localStorage.setItem(k, JSON.stringify(v));
+              count++;
+            } catch { console.warn("backup: write local failed", k); }
           }
 
-          // 同步到 API（所有需要写入 API 的 key）
-          const apiKeys = [
-            "blog_custom_posts", "gallery_photos", "travel_all_markers",
-            "music_tracks", "bg_assets", "guestbook_messages", "site_defaults",
-          ];
-          let apiOk = 0, apiFail = 0;
+          // 3) 同步到 API（DB_KEYS + 所有评论 key）
           const token = localStorage.getItem("admin_token");
-          for (const k of apiKeys) {
-            if (data[k] !== undefined && token) {
+          let apiOk = 0, apiFail = 0;
+          const apiWriteKeys = new Set<string>([...DB_KEYS]);
+          for (const k of Object.keys(data)) {
+            if (isCommentDataKey(k)) apiWriteKeys.add(k);
+          }
+          if (token) {
+            for (const k of apiWriteKeys) {
+              if (data[k] === undefined) continue;
               try {
                 const res = await fetch(`/api/data/${k}`, {
                   method: "POST",
@@ -809,29 +845,20 @@ function BackupSection() {
               } catch { apiFail++; }
             }
           }
-          // 同步评论（blog_comments_{slug} 独立 key）
-          for (const [k, v] of Object.entries(data)) {
-            if (k.startsWith("blog_comments_") && k !== "blog_comments_slugs" && k !== "blog_comments_all" && token) {
-              try {
-                await fetch(`/api/data/${k}`, {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-                  body: JSON.stringify({ data: v }),
-                });
-              } catch { console.warn("SettingsPanel: operation failed"); }
-            }
-          }
 
-          if (apiFail === 0 && apiOk > 0) {
-            setStatus(`✅ 已恢复 ${count} 项数据，服务端同步成功！`);
+          // 4) 反馈
+          let msg: string;
+          if (!token) {
+            msg = `已恢复 ${count} 项本地数据（未登录，服务器数据未同步）`;
+          } else if (apiFail === 0 && apiOk > 0) {
+            msg = `✅ 已恢复 ${count} 项数据，服务端同步 ${apiOk} 项成功！`;
           } else if (apiFail > 0) {
-            setStatus(`已恢复 ${count} 项数据，但 ${apiFail} 项同步失败`);
-          } else if (!token) {
-            setStatus(`已恢复 ${count} 项数据（未登录，仅本地有效）`);
+            msg = `已恢复 ${count} 项数据，但 ${apiFail} 项服务端同步失败`;
           } else {
-            setStatus(`已恢复 ${count} 项数据`);
+            msg = `已恢复 ${count} 项本地数据`;
           }
-          setTimeout(() => setStatus(null), 3000);
+          setStatus(msg + "（建议刷新页面以应用背景/主题）");
+          setTimeout(() => setStatus(null), 5000);
         } catch {
           setStatus("文件格式错误");
           setTimeout(() => setStatus(null), 2000);
@@ -852,6 +879,9 @@ function BackupSection() {
           📤 恢复备份
         </button>
       </div>
+      <p className="text-[10px] text-muted-foreground leading-relaxed">
+        博客、评论、留言、联系表单、背景、音乐等从服务器备份；旅行标记仅备份当前浏览器。恢复会覆盖现有数据，建议先导出当前备份。
+      </p>
       {status && <p className="text-[11px] text-green-500 text-center">{status}</p>}
     </div>
   );
