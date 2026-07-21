@@ -86,8 +86,9 @@ export async function GET(
     }
     await ensureDB();
     const result = await loadFromDb(key);
-    // 对评论/留言等软删除 key，过滤掉 _deleted 项（含嵌套 replies），客户端永远看不到已删内容
-    if (isMergedKey(key) && result.exists && Array.isArray(result.data)) {
+    // 对评论/留言等软删除 key，访客看到的是过滤 _deleted 后的结果；
+    // 管理员看到原始数据（含 tombstone），便于确认删除状态。
+    if (isMergedKey(key) && result.exists && Array.isArray(result.data) && !getAuthFromRequest(_req)) {
       result.data = filterDeleted(result.data);
     }
     return NextResponse.json(result);
