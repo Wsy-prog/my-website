@@ -25,30 +25,51 @@ function isMergedKey(key: string): boolean {
   return MERGED_WRITE_KEYS.includes(key) || MERGED_WRITE_PREFIXES.some((p) => key.startsWith(p));
 }
 
-/** 按 id 合并：服务端现有 + 请求体，请求体优先（同 id 覆盖），保留服务端独有的项 */
+/** 按 id 合并：服务端现有 + 请求体，请求体优先（同 id 覆盖），保留服务端独有的项。
+ *  _deleted 标记优先（管理员软删除）：任一方 _deleted 则结果标记删除，最后过滤掉。 */
 function mergeById(server: any[], incoming: any[]): any[] {
   const map = new Map<number, any>();
   for (const item of server) if (item && typeof item.id !== "undefined") map.set(item.id, item);
-  for (const item of incoming) if (item && typeof item.id !== "undefined") map.set(item.id, item);
-  return Array.from(map.values());
+  for (const item of incoming) {
+    if (!item || typeof item.id === "undefined") continue;
+    const existing = map.get(item.id);
+    if (existing && (existing._deleted || item._deleted)) {
+      map.set(item.id, { ...existing, ...item, _deleted: true });
+    } else {
+      map.set(item.id, item);
+    }
+  }
+  return Array.from(map.values()).filter((x) => !x._deleted);
 }
 
-/** 递归按 id 合并评论（顶层评论 + 各层 replies） */
+/** 递归按 id 合并评论（顶层评论 + 各层 replies）。
+ *  _deleted 标记优先（管理员软删除）：任一方 _deleted 则该条删除，最后过滤掉。 */
 function mergeComments(server: any[], incoming: any[]): any[] {
-  // 顶层按 id 合并；replies 也按 id 合并
   const map = new Map<number, any>();
   for (const c of server) if (c && typeof c.id !== "undefined") map.set(c.id, c);
   for (const c of incoming) {
     if (!c || typeof c.id === "undefined") continue;
     const existing = map.get(c.id);
     if (existing) {
-      // 合并 replies
-      map.set(c.id, { ...existing, ...c, replies: mergeComments(existing.replies || [], c.replies || []) });
+      const deleted = existing._deleted || c._deleted;
+      map.set(c.id, {
+        ...existing,
+        ...c,
+        _deleted: deleted,
+        replies: mergeComments(existing.replies || [], c.replies || []),
+      });
     } else {
       map.set(c.id, c);
     }
   }
-  return Array.from(map.values());
+  return Array.from(map.values()).filter((x) => !x._deleted);
+}
+
+/** 递归过滤掉 _deleted 标记的项（顶层 + 嵌套 replies），用于 GET 返回前 */
+function filterDeleted(items: any[]): any[] {
+  return items
+    .filter((x) => !x?._deleted)
+    .map((x) => (x.replies ? { ...x, replies: filterDeleted(x.replies) } : x));
 }
 
 // GET /api/data/{key} — 读取数据（公开，敏感 key 需鉴权）
@@ -63,6 +84,10 @@ export async function GET(
     }
     await ensureDB();
     const result = await loadFromDb(key);
+    // 对评论/留言等软删除 key，过滤掉 _deleted 项（含嵌套 replies），客户端永远看不到已删内容
+    if (isMergedKey(key) && result.exists && Array.isArray(result.data)) {
+      result.data = filterDeleted(result.data);
+    }
     return NextResponse.json(result);
   } catch (e: any) {
     return NextResponse.json({ error: "读取失败" }, { status: 500 });

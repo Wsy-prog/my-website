@@ -96,15 +96,17 @@ export async function POST(
   }
 }
 
-// 在回复树中按 id 删除任意一条（含子回复）
-function removeByIdDeep(replies: BlogReply[], id: number): BlogReply[] {
-  return replies
-    .filter((r) => r.id !== id)
-    .map((r) => ({ ...r, replies: removeByIdDeep(r.replies, id) }));
+// 在回复树中按 id 标记软删除（保留记录，设 _deleted=true，让合并保护尊重删除标记）
+function markDeletedDeep(replies: BlogReply[], id: number): BlogReply[] {
+  return replies.map((r) => {
+    if (r.id === id) return { ...r, _deleted: true, replies: markDeletedDeep(r.replies, id) };
+    return { ...r, replies: markDeletedDeep(r.replies, id) };
+  });
 }
 
 // DELETE /api/blog-comment/{slug}?id=<commentId> — 管理员删除评论/回复
-// 合并保护会阻止全量 POST 删除，故用专用 DELETE 端点真删。
+// 软删除：标记 _deleted 而非真删。合并保护会尊重 _deleted（任一方 _deleted 即删除），
+// 这样其他访客客户端缓存了旧评论并全量 POST 时，不会把已删评论"复活"。
 export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ slug: string }> }
@@ -128,10 +130,11 @@ export async function DELETE(
     const existing = await loadFromDb<BlogComment[]>(key);
     const comments = existing.exists && Array.isArray(existing.data) ? existing.data : [];
 
-    // 顶层删除 + 子回复删除
-    const updated = comments
-      .filter((c) => c.id !== id)
-      .map((c) => ({ ...c, replies: removeByIdDeep(c.replies, id) }));
+    // 顶层或子回复：标记 _deleted（保留记录以便合并保护识别）
+    const updated = comments.map((c) => {
+      if (c.id === id) return { ...c, _deleted: true, replies: markDeletedDeep(c.replies, id) };
+      return { ...c, replies: markDeletedDeep(c.replies, id) };
+    });
 
     await saveToDb(key, updated);
     return NextResponse.json({ ok: true });

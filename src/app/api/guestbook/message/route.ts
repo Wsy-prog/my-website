@@ -67,15 +67,16 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// 在回复树中按 id 删除任意一条
-function removeReplyDeep(replies: any[], id: number): any[] {
-  return replies
-    .filter((r) => r.id !== id)
-    .map((r) => ({ ...r, replies: removeReplyDeep(r.replies || [], id) }));
+// 在回复树中按 id 标记软删除
+function markReplyDeleted(replies: any[], id: number): any[] {
+  return replies.map((r) => {
+    if (r.id === id) return { ...r, _deleted: true, replies: markReplyDeleted(r.replies || [], id) };
+    return { ...r, replies: markReplyDeleted(r.replies || [], id) };
+  });
 }
 
 // DELETE /api/guestbook/message?id=<msgId> — 管理员删除留言/回复
-// 合并保护会阻止全量 POST 删除，故用专用 DELETE 端点真删。
+// 软删除：标记 _deleted 而非真删，合并保护会尊重 _deleted，防止其他访客缓存的全量 POST 复活已删留言。
 export async function DELETE(req: NextRequest) {
   try {
     if (!getAuthFromRequest(req)) {
@@ -90,9 +91,10 @@ export async function DELETE(req: NextRequest) {
     await ensureDB();
     const existing = await loadFromDb<GuestMessage[]>("guestbook_messages");
     const messages = existing.exists && Array.isArray(existing.data) ? existing.data : [];
-    const updated = messages
-      .filter((m) => m.id !== id)
-      .map((m) => ({ ...m, replies: removeReplyDeep(m.replies || [], id) }));
+    const updated = messages.map((m) => {
+      if (m.id === id) return { ...m, _deleted: true, replies: markReplyDeleted(m.replies || [], id) };
+      return { ...m, replies: markReplyDeleted(m.replies || [], id) };
+    });
 
     await saveToDb("guestbook_messages", updated);
     return NextResponse.json({ ok: true });
