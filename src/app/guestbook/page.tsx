@@ -102,8 +102,10 @@ export default function GuestbookPage() {
           const hydrate = (msgs: any[]): Message[] =>
             msgs.map((m) => ({ ...m, showReplyForm: false, replies: hydrate(m.replies || []) }));
           setMessages(hydrate(json.data));
-        } else if (localStorage.getItem(GUESTBOOK_KEY)) {
-          setMessages(loadMessages());
+        } else {
+          // 服务端空（或不存在）→ 清空本地缓存，不保留旧数据
+          localStorage.removeItem(GUESTBOOK_KEY);
+          setMessages([]);
         }
       } catch {
         if (localStorage.getItem(GUESTBOOK_KEY)) setMessages(loadMessages());

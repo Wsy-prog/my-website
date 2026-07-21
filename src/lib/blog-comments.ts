@@ -125,37 +125,19 @@ export function saveComments(slug: string, comments: BlogComment[]) {
 }
 
 /**
- * 从服务端拉取该文章的评论，与本地双向合并：
- * - 服务端有、本地无 → 新增
- * - 本地有、服务端无 → 保留（本地尚未同步的新评论）
- * - 都存在 → 以服务端为准（覆盖点赞数等更新）
- */
+ * 从服务端拉取该文章的评论，覆盖本地缓存（服务端是权威源）。
+ * 不再保留"本地独有"——这会把已删评论复活，且新增已走追加端点不依赖本地保留。 */
 export async function mergeCommentsFromServer(slug: string): Promise<BlogComment[]> {
   const serverComments = await loadCommentsFromServerForSlug(slug);
   if (!serverComments || serverComments.length === 0) {
-    return loadComments(slug);
+    // 服务端空 → 清空本地缓存，不保留任何本地旧数据
+    saveCommentsRaw(slug, []);
+    return [];
   }
 
-  const local = loadComments(slug);
-  const localMap = new Map<number, BlogComment>();
-  local.forEach((c) => localMap.set(c.id, c));
-
-  const serverMap = new Map<number, BlogComment>();
-  serverComments.forEach((c) => serverMap.set(c.id, c));
-
-  // 双向合并：以 id 为 key，服务端优先覆盖，本地补充服务端没有的
-  const merged = new Map<number, BlogComment>();
-  for (const [id, sc] of serverMap) { merged.set(id, sc); }
-  for (const [id, lc] of localMap) {
-    if (!merged.has(id)) { merged.set(id, lc); }
-  }
-
-  const result = Array.from(merged.values()).sort((a, b) => b.id - a.id);
-
-  // 写回本地
-  saveComments(slug, result);
-
-  return result;
+  // 以服务端为准（评论/回复的增删改都在服务端权威）
+  saveCommentsRaw(slug, serverComments);
+  return serverComments;
 }
 
 // ========== 工具函数 ==========
