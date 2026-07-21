@@ -26,7 +26,8 @@ function isMergedKey(key: string): boolean {
 }
 
 /** 按 id 合并：服务端现有 + 请求体，请求体优先（同 id 覆盖），保留服务端独有的项。
- *  _deleted 标记优先（管理员软删除）：任一方 _deleted 则结果标记删除，最后过滤掉。 */
+ *  _deleted 标记优先（管理员软删除）：任一方 _deleted 则结果标记删除。
+ *  不过滤 tombstone——写入数据库时保留 _deleted 记录，防止其他客户端全量 POST 复活。 */
 function mergeById(server: any[], incoming: any[]): any[] {
   const map = new Map<number, any>();
   for (const item of server) if (item && typeof item.id !== "undefined") map.set(item.id, item);
@@ -39,11 +40,12 @@ function mergeById(server: any[], incoming: any[]): any[] {
       map.set(item.id, item);
     }
   }
-  return Array.from(map.values()).filter((x) => !x._deleted);
+  return Array.from(map.values());
 }
 
 /** 递归按 id 合并评论（顶层评论 + 各层 replies）。
- *  _deleted 标记优先（管理员软删除）：任一方 _deleted 则该条删除，最后过滤掉。 */
+ *  _deleted 标记优先（管理员软删除）：任一方 _deleted 则该条删除。
+ *  不过滤 tombstone——写入数据库时保留 _deleted 记录，防止其他客户端全量 POST 复活。 */
 function mergeComments(server: any[], incoming: any[]): any[] {
   const map = new Map<number, any>();
   for (const c of server) if (c && typeof c.id !== "undefined") map.set(c.id, c);
@@ -62,7 +64,7 @@ function mergeComments(server: any[], incoming: any[]): any[] {
       map.set(c.id, c);
     }
   }
-  return Array.from(map.values()).filter((x) => !x._deleted);
+  return Array.from(map.values());
 }
 
 /** 递归过滤掉 _deleted 标记的项（顶层 + 嵌套 replies），用于 GET 返回前 */
