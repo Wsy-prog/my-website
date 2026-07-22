@@ -16,7 +16,7 @@ export const travelMarkers: TravelMarker[] = [
   { id: 30, lat: 19.61, lng: 110.75, title: "家 · 海南文昌", date: "", photo: "🏠", type: "home" },
   { id: 31, lat: 31.82, lng: 117.23, title: "现居 · 安徽合肥", date: "2023-至今", photo: "🏡", type: "residence" },
   { id: 20, lat: 31.62, lng: 117.89, title: "巢湖", date: "2026-07", photo: "🌊" },
-  { id: 25, lat: 36.65, lng: 117.0, title: "济南", date: "2026-07", photo: "🏯" },
+
   { id: 1, lat: 22.54, lng: 114.06, title: "深圳", date: "2026-06", photo: "🏙️" },
   { id: 2, lat: 27.2, lng: 115.8, title: "江西乐安", date: "2026-06", photo: "🏞️" },
   { id: 3, lat: 30.0, lng: 117.98, title: "安徽宏村", date: "2026-04", photo: "🏡" },
